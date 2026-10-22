@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Window</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: full-bleed WebGL window, a slim control rail floating bottom-left, status top-left. */
+:root{
+  --bg:#0e0f12;
+  --ink:#ece7df;
+  --dim:#9a958d;
+  --panel:rgba(18,19,23,.78);
+  --edge:rgba(236,231,223,.14);
+  --accent:#7fd1c3;
+  --display:"Fraunces",Georgia,serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);overflow:hidden}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.panel{position:fixed;background:var(--panel);border:1px solid var(--edge);border-radius:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#top{top:16px;left:16px;padding:10px 14px;max-width:min(420px,calc(100vw - 32px))}
+#top h1{font:600 22px/1.1 var(--display);margin:0 0 2px;letter-spacing:.01em}
+#status,#track{font:12px var(--mono);color:var(--dim)}
+#status b,#track b{color:var(--accent);font-weight:400}
+#ctl{left:16px;bottom:16px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(280px,calc(100vw - 32px))}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button,.file{font:500 13px var(--body);color:var(--bg);background:var(--ink);border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--edge)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,.file:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.file input{position:absolute;opacity:0;width:1px;height:1px}
+#ctl{max-height:calc(100vh - 120px);overflow-y:auto}
+.sliders{display:flex;flex-direction:column;gap:8px}
+.sliders summary{font:500 12px var(--body);color:var(--ink);cursor:pointer;margin-bottom:2px}
+.note{font-size:11px;color:var(--dim);margin:0}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--edge);border-radius:8px;padding:2px;gap:2px}
+.seg button{background:transparent;color:var(--dim);padding:6px 0;border-radius:6px}
+.seg button[aria-checked="true"]{background:rgba(236,231,223,.12);color:var(--ink)}
+label.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;color:var(--dim)}
+label.sl input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+label.sl output{font:12px var(--mono);color:var(--ink)}
+#cam{position:fixed;right:16px;bottom:16px;width:160px;border-radius:10px;border:1px solid var(--edge);transform:scaleX(-1);opacity:.85}
+#hint{font-size:12px;color:var(--dim);margin:0}
+#top h1 a{color:inherit;text-decoration:none}
+.file.nudge{animation:nudge 1.4s ease-in-out 3;box-shadow:0 0 0 2px var(--accent)}
+@keyframes nudge{50%{box-shadow:0 0 0 6px rgba(127,209,195,.25)}}
+.gallery{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.gallery button{padding:0;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:none;aspect-ratio:4/3;opacity:.7}
+.gallery button:hover,.gallery button[aria-pressed="true"]{opacity:1;border-color:var(--accent)}
+.gallery img{width:100%;height:100%;object-fit:cover;display:block}
+#drop{position:fixed;inset:0;display:grid;place-items:center;background:rgba(14,15,18,.7);font:500 20px var(--display);pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js",
+  "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
+} }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div class="panel" id="top">
+  <h1><a href="./">Deep Window</a></h1>
+  <div id="status">Getting ready…</div>
+  <div id="track" class="status"></div>
+</div>
+
+<div class="panel" id="ctl">
+  <div class="gallery" id="gallery" role="group" aria-label="Sample photos"></div>
+  <div class="row">
+    <label class="file" for="pick">Choose photo<input id="pick" type="file" accept="image/*"></label>
+    <button id="camBtn" class="ghost" type="button">Turn on camera</button>
+    <button id="full" class="ghost" type="button">Full screen</button>
+  </div>
+  <div class="seg" id="frame" role="radiogroup" aria-label="Window style">
+    <button type="button" role="radio" data-frame="grid">Tunnel</button>
+    <button type="button" role="radio" data-frame="sill">Frame</button>
+    <button type="button" role="radio" data-frame="none">None</button>
+  </div>
+  <label class="sl">Depth
+    <input data-p="far" type="range" min="0.6" max="4" step="0.05"></label>
+  <label class="sl" id="screenRow" hidden>Screen size (inches) <output></output>
+    <input data-p="screenIn" type="range" min="10" max="40" step="0.5"></label>
+  <details class="sliders"><summary>Advanced</summary>
+    <label class="sl">Overscan margin <output></output>
+      <input data-p="margin" type="range" min="0" max="0.8" step="0.01"></label>
+    <label class="sl">Near plane (behind glass) <output></output>
+      <input data-p="near" type="range" min="0.02" max="0.8" step="0.01"></label>
+    <label class="sl">Pop-out <output></output>
+      <input data-p="pop" type="range" min="0" max="0.4" step="0.01"></label>
+    <label class="sl">Edge tear threshold (2 = off) <output></output>
+      <input data-p="tear" type="range" min="0.05" max="2" step="0.01"></label>
+    <label class="sl">Frame depth <output></output>
+      <input data-p="sill" type="range" min="0.02" max="0.6" step="0.01"></label>
+    <label class="sl">Tunnel depth <output></output>
+      <input data-p="tunnel" type="range" min="0.2" max="2" step="0.05"></label>
+    <label class="sl">Motion gain <output></output>
+      <input data-p="gain" type="range" min="0.2" max="2.5" step="0.01"></label>
+    <label class="sl">Webcam horizontal FOV (°) <output></output>
+      <input data-p="camFov" type="range" min="40" max="100" step="1"></label>
+    <label class="sl">Webcam above screen edge (cm) <output></output>
+      <input data-p="camOff" type="range" min="0" max="5" step="0.1"></label>
+    <p class="note">Check the distance in the status line with a tape measure; if it is off, adjust the webcam FOV. Most accurate in full screen.</p>
+    <div class="row"><button id="reset" class="ghost" type="button">Reset settings</button></div>
+  </details>
+  <p id="hint">Without the camera, look around with your mouse. You can also drop a photo onto the page.</p>
+</div>
+
+<video id="cam" playsinline muted hidden></video>
+<div id="drop" hidden>Drop your photo</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+const say = (html) => { statusEl.innerHTML = html; };
+
+// ---------------- renderer ----------------
+const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // shader writes the photo's own sRGB values
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e0f12);
+const camera = new THREE.PerspectiveCamera();
+camera.matrixAutoUpdate = true;
+
+// Screen is the "window": height 1 unit, width = aspect, sitting at z = 0.
+// The viewer's eye sits at (ex, ey, ez) in front of it.
+const EZ0 = 2.0;                      // resting viewing distance in screen-heights
+const eye = new THREE.Vector3(0, 0, EZ0);
+const eyeTarget = eye.clone();
+
+// Tunable parameters, all in screen-heights. Kept in localStorage so tuning survives reloads.
+const DEFAULTS = {
+  margin: 0.3,   // P1: photo covers the screen plus this much extra, hidden behind the frame at rest
+  near: 0.2,     // P1: nearest point sits this far behind the glass, so the screen edge occludes it
+  far: 1.5,      // P2: farthest point (sky, horizon); far/near around 5–10x keeps the depth spread even
+  pop: 0.0,      // P1: optional pop-out of the nearest things through the glass
+  tear: 0.35,    // P2: relative depth jump above which stretched "curtain" triangles are dropped
+  frame: 'grid', // P3: 'grid' (tunnel with grid walls), 'sill' (shallow window reveal) or 'none'
+  sill: 0.15,    // P3: depth of the window reveal walls between the glass and the photo
+  tunnel: 0.7,   // P3: depth of the grid tunnel; the photo is pushed back to sit at its end
+  gain: 1.0,     // head / mouse motion gain
+  screenIn: 14,  // P4: physical screen diagonal, inches
+  camFov: 63,    // P4: webcam horizontal field of view, degrees
+  camOff: 1.0,   // P4: webcam lens above the screen's top edge, cm
+};
+const params = { ...DEFAULTS };
+try { Object.assign(params, JSON.parse(localStorage.getItem('deep-window') || '{}')); } catch {}
+
+const uniforms = {
+  uColor: { value: null },
+  uDepth: { value: null },
+  uEz: { value: EZ0 },
+  uNear: { value: params.near },
+  uFar: { value: params.far },
+  uPop: { value: params.pop },
+  uTear: { value: params.tear },
+  uStep: { value: new THREE.Vector2(1 / 360, 1 / 240) },
+  uShift: { value: 0 },   // tunnel depth: the whole relief moves back by this much
+};
+const material = new THREE.ShaderMaterial({
+  uniforms,
+  vertexShader: /* glsl */`
+    uniform sampler2D uDepth; uniform float uEz, uNear, uFar, uPop, uShift; uniform vec2 uStep;
+    varying vec2 vUv; varying float vTear;
+    // disparity (1 = near, 0 = far) -> distance behind the glass, inverse-proportional
+    float zAt(vec2 uv){
+      float d = texture2D(uDepth, vec2(uv.x, 1.0 - uv.y)).r;
+      float a = 1.0 / uNear - 1.0 / uFar, b = 1.0 / uFar;
+      return 1.0 / (a * d + b) - uPop * smoothstep(0.6, 1.0, d);
+    }
+    void main(){
+      vUv = uv;
+      float z = zAt(uv);
+      // depth jump to the neighbouring mesh vertices, relative to distance from the resting eye
+      float j = max(max(abs(zAt(uv - vec2(uStep.x, 0.0)) - z), abs(zAt(uv + vec2(uStep.x, 0.0)) - z)),
+                    max(abs(zAt(uv - vec2(0.0, uStep.y)) - z), abs(zAt(uv + vec2(0.0, uStep.y)) - z)));
+      vTear = j / (uEz + z);
+      z += uShift;
+      vec3 p = position;
+      // keep the photo framed from the resting eye, as seen through the tunnel's back opening
+      p.xy *= (uEz + z) / (uEz + uShift);
+      p.z = -z;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D uColor; uniform float uTear; varying vec2 vUv; varying float vTear;
+    void main(){
+      if (vTear > uTear) discard;                              // the blurred backdrop shows through
+      vec3 c = texture2D(uColor, vUv).rgb;
+      vec2 q = vUv - 0.5;
+      float vig = smoothstep(0.75, 0.35, length(q * vec2(1.0, 1.1)));
+      gl_FragColor = vec4(c * mix(0.82, 1.0, vig), 1.0);
+    }`,
+});
+let mesh = null;
+let aspect = 1.5;           // photo aspect
+function buildMesh(photoAspect){
+  aspect = photoAspect;
+  if (mesh){ scene.remove(mesh); mesh.geometry.dispose(); }
+  const segX = 360, segY = Math.max(60, Math.round(segX / photoAspect));
+  mesh = new THREE.Mesh(new THREE.PlaneGeometry(photoAspect, 1, segX, segY), material);
+  uniforms.uStep.value.set(1 / segX, 1 / segY);
+  scene.add(mesh);
+  backdrop.geometry.dispose(); backdrop.geometry = new THREE.PlaneGeometry(photoAspect, 1);
+}
+
+// Blurred, dimmed copy of the photo behind the far plane: fills holes left by dropped
+// curtain triangles and whatever lies past the photo's edge at extreme head positions.
+const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.55, 0.55) }));
+scene.add(backdrop);
+function blurTexture(source){
+  const w = 48, h = Math.max(8, Math.round(48 * source.height / source.width));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(source, 0, 0, w, h);
+  return colorTexture(c);
+}
+function setPhotoTextures(cv){
+  uniforms.uColor.value?.dispose(); uniforms.uColor.value = colorTexture(cv);
+  backdrop.material.map?.dispose(); backdrop.material.map = blurTexture(cv); backdrop.material.needsUpdate = true;
+  // the reveal walls pick up the photo's average colour, as if lit from outside
+  const px = document.createElement('canvas'); px.width = px.height = 1;
+  const g = px.getContext('2d'); g.drawImage(cv, 0, 0, 1, 1);
+  try { const [r, gr, b] = g.getImageData(0, 0, 1, 1).data; sill.material.uniforms.uTint.value.setRGB(r / 255, gr / 255, b / 255); } catch {}
+}
+
+// P3: window reveal / tunnel. Four walls from the screen edge (glass, z = 0) back to z = -1, scaled
+// to the screen and the chosen depth each frame. vT = 0 at the glass, 1 at the back; vS runs along
+// the wall; aWall: 0 top, 1 bottom, 2 left, 3 right. In tunnel mode the walls carry a square grid.
+const sill = (() => {
+  const pos = [], t = [], s = [], wall = [], idx = [];
+  const quads = [
+    [[-.5, .5], [.5, .5]], [[.5, -.5], [-.5, -.5]], [[-.5, -.5], [-.5, .5]], [[.5, .5], [.5, -.5]],
+  ];
+  quads.forEach(([a, b], w) => {
+    const base = pos.length / 3;
+    pos.push(a[0], a[1], 0, b[0], b[1], 0, b[0], b[1], -1, a[0], a[1], -1);
+    t.push(0, 0, 1, 1); s.push(0, 1, 1, 0); wall.push(w, w, w, w);
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.Float32BufferAttribute(t, 1));
+  geo.setAttribute('aS', new THREE.Float32BufferAttribute(s, 1));
+  geo.setAttribute('aWall', new THREE.Float32BufferAttribute(wall, 1));
+  geo.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: {
+      uTint: { value: new THREE.Color(0.5, 0.5, 0.5) },
+      uGrid: { value: 0 },                          // 1 in tunnel mode
+      uSize: { value: new THREE.Vector3(1.6, 1, 1) }, // screen width, screen height, wall depth
+    },
+    vertexShader: /* glsl */`
+      attribute float aT; attribute float aS; attribute float aWall;
+      varying float vT; varying float vS; varying float vWall;
+      void main(){ vT = aT; vS = aS; vWall = aWall; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uTint; uniform float uGrid; uniform vec3 uSize;
+      varying float vT; varying float vS; varying float vWall;
+      void main(){
+        // light comes in from the scene: top wall catches the most, bottom the least
+        float lit = vWall < 0.5 ? 0.85 : vWall < 1.5 ? 0.45 : 0.62;
+        vec3 base = vec3(0.10, 0.095, 0.09) * mix(1.0, 0.7, uGrid);
+        vec3 c = mix(base, base + uTint * 0.35 * lit, smoothstep(0.0, 1.0, vT)) * mix(0.7, 1.0, lit);
+        if (uGrid > 0.5){
+          // square cells of 1/10 screen height, measured in world units so perspective does the rest
+          float len = vWall < 1.5 ? uSize.x : uSize.y;
+          vec2 g = vec2(vS * len, vT * uSize.z) * 10.0;
+          vec2 dist = abs(fract(g - 0.5) - 0.5) / fwidth(g);  // distance to the nearest line, in pixels
+          float line = 1.0 - smoothstep(0.0, 1.2, min(dist.x, dist.y));
+          vec3 ink = mix(uTint, vec3(1.0), 0.55) * 0.55;
+          c = mix(c, ink, line * mix(0.9, 0.35, vT));            // lines fade into the depth
+        }
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  scene.add(m);
+  return m;
+})();
+
+function fitView(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+}
+addEventListener('resize', fitView); fitView();
+
+// Off-axis projection: the screen rectangle stays fixed, the frustum leans toward the eye.
+function updateCamera(){
+  const sa = innerWidth / innerHeight;          // screen aspect
+  // cover the screen (not contain) plus a margin: the screen edge becomes the window frame
+  const s = Math.max(sa / aspect, 1) * (1 + params.margin);
+  if (mesh) mesh.scale.set(s, s, 1);
+  const shift = params.frame === 'grid' ? params.tunnel : 0;
+  uniforms.uShift.value = shift;
+  const zb = shift + Math.max(params.far, params.near + 0.1) * 1.05 + 0.05;
+  backdrop.position.z = -zb;
+  backdrop.scale.setScalar(s * (EZ0 + zb) / (EZ0 + shift) * 1.4);
+  const wallDepth = params.frame === 'grid' ? params.tunnel : params.sill;
+  sill.visible = params.frame !== 'none';
+  sill.scale.set(sa, 1, wallDepth);
+  sill.material.uniforms.uGrid.value = params.frame === 'grid' ? 1 : 0;
+  sill.material.uniforms.uSize.value.set(sa, 1, wallDepth);
+  const halfW = sa / 2, halfH = 0.5, n = 0.05, f = 50;
+  const { x: ex, y: ey, z: ez } = eye;
+  const l = (-halfW - ex) * n / ez, r = (halfW - ex) * n / ez;
+  const b = (-halfH - ey) * n / ez, t = (halfH - ey) * n / ez;
+  camera.position.copy(eye);
+  camera.rotation.set(0, 0, 0);
+  camera.updateMatrixWorld();
+  camera.projectionMatrix.makePerspective(l, r, t, b, n, f);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+}
+
+// ---------------- textures ----------------
+function colorTexture(source){
+  const t = new THREE.Texture(source);
+  t.colorSpace = THREE.NoColorSpace;
+  t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  t.needsUpdate = true; return t;
+}
+function depthTexture(data, w, h){
+  const t = new THREE.DataTexture(data, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  t.minFilter = t.magFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+}
+// placeholder depth (a soft dome) used until / unless the model answers
+function fallbackDepth(w, h){
+  const d = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const dx = (x / w - 0.5) * 1.6, dy = (y / h - 0.62) * 1.6;
+    d[y * w + x] = Math.max(0, Math.min(255, 255 * (1 - Math.sqrt(dx*dx + dy*dy)) * 0.9 + (y / h) * 40));
+  }
+  return depthTexture(d, w, h);
+}
+
+// ---------------- depth model (runs in the browser) ----------------
+let depthPipe = null, depthLoading = null, device = 'wasm';
+async function getDepth(){
+  if (depthPipe) return depthPipe;
+  if (depthLoading) return depthLoading;
+  depthLoading = (async () => {
+    const { pipeline, env } = await import('@huggingface/transformers');
+    env.allowLocalModels = false;
+    device = ('gpu' in navigator && await navigator.gpu.requestAdapter().catch(() => null)) ? 'webgpu' : 'wasm';
+    const files = {};
+    depthPipe = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', {
+      device, dtype: device === 'webgpu' ? 'fp16' : 'q8',
+      progress_callback: (p) => {
+        if (p.status === 'progress' && p.total){ files[p.file] = [p.loaded, p.total];
+          const [a, b] = Object.values(files).reduce((s, [l, t]) => [s[0] + l, s[1] + t], [0, 0]);
+          say(`Downloading depth model <b>${Math.round(a / b * 100)}%</b> · ${(b / 1e6).toFixed(0)} MB, one time only`); }
+      },
+    });
+    return depthPipe;
+  })();
+  return depthLoading;
+}
+
+// ---------------- photo pipeline ----------------
+let busy = false;
+async function loadPhoto(src, label){
+  if (busy) return; busy = true;
+  try{
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    await new Promise((ok, err) => { img.onload = ok; img.onerror = () => err(new Error('Could not open the image')); img.src = src; });
+    // work at max 1024 px on the long side: fast inference, enough detail for the mesh
+    const k = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+    const cw = Math.round(img.naturalWidth * k), ch = Math.round(img.naturalHeight * k);
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+
+    buildMesh(cw / ch);
+    setPhotoTextures(cv);
+    uniforms.uDepth.value?.dispose(); uniforms.uDepth.value = fallbackDepth(128, Math.round(128 * ch / cw));
+    say(`${label} · estimating depth…`);
+
+    try{
+      const pipe = await getDepth();
+      const { RawImage } = await import('@huggingface/transformers');
+      const t0 = performance.now();
+      const out = await pipe(RawImage.fromCanvas(cv));
+      const dimg = out.depth;
+      uniforms.uDepth.value.dispose();
+      uniforms.uDepth.value = depthTexture(new Uint8Array(dimg.data), dimg.width, dimg.height);
+      say(`${label} · depth <b>${Math.round(performance.now() - t0)} ms</b> (${device === 'webgpu' ? 'WebGPU' : 'CPU'})`);
+    } catch (e){
+      console.error(e);
+      say(`Could not load the depth model, showing placeholder depth. Check your connection.`);
+    }
+  } catch (e){
+    say(e.message);
+  } finally { busy = false; }
+}
+
+$('pick').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadPhoto(URL.createObjectURL(f), f.name); });
+addEventListener('dragover', e => { e.preventDefault(); $('drop').hidden = false; });
+addEventListener('dragleave', e => { if (e.target === document.documentElement || !e.relatedTarget) $('drop').hidden = true; });
+addEventListener('drop', e => { e.preventDefault(); $('drop').hidden = true; const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/')); if (f) loadPhoto(URL.createObjectURL(f), f.name); });
+
+// sliders
+const sliders = [...document.querySelectorAll('input[data-p]')];
+function applyParams(){
+  uniforms.uNear.value = params.near;
+  uniforms.uFar.value = Math.max(params.far, params.near + 0.1);
+  uniforms.uPop.value = params.pop;
+  uniforms.uTear.value = params.tear >= 2 ? 1e9 : params.tear;
+  for (const el of sliders){
+    el.value = params[el.dataset.p];
+    const out = el.parentElement.querySelector('output');
+    if (out) out.value = (+params[el.dataset.p]).toFixed((el.step.split('.')[1] || '').length);
+  }
+  for (const b of $('frame').children) b.setAttribute('aria-checked', b.dataset.frame === params.frame);
+}
+const saveParams = () => { try { localStorage.setItem('deep-window', JSON.stringify(params)); } catch {} };
+for (const b of $('frame').children) b.addEventListener('click', () => {
+  params.frame = b.dataset.frame; applyParams(); saveParams();
+});
+for (const el of sliders) el.addEventListener('input', () => {
+  params[el.dataset.p] = +el.value; applyParams(); saveParams();
+});
+$('reset').addEventListener('click', () => {
+  Object.assign(params, DEFAULTS); applyParams();
+  try { localStorage.removeItem('deep-window'); } catch {}
+});
+applyParams();
+
+$('full').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+});
+
+// ---------------- head tracking (P4) ----------------
+// Eye position in millimetres from the webcam, via the iris: its diameter is ~11.7 mm for nearly
+// everyone, so distance = focal_px * 11.7 / iris_px. Then converted to screen-heights around the
+// viewport centre using the physical screen size from the calibration sliders.
+const IRIS_MM = 11.7;
+const LEAD = 0.04;   // s, forward prediction to hide camera + inference latency
+
+// 1€ filter (Casiez, Roussel, Vogel, CHI 2012): calm when still, little lag when moving fast
+class OneEuro {
+  constructor(minCutoff, beta, dCutoff = 1){ Object.assign(this, { minCutoff, beta, dCutoff, x: null, dx: 0, t: 0 }); }
+  static alpha(cutoff, dt){ const r = 2 * Math.PI * cutoff * dt; return r / (r + 1); }
+  filter(v, t){
+    if (this.x === null){ this.x = v; this.t = t; return v; }
+    const dt = t - this.t; if (dt <= 0) return this.x; this.t = t;
+    this.dx += OneEuro.alpha(this.dCutoff, dt) * ((v - this.x) / dt - this.dx);
+    this.x += OneEuro.alpha(this.minCutoff + this.beta * Math.abs(this.dx), dt) * (v - this.x);
+    return this.x;
+  }
+}
+const fx = new OneEuro(1.0, 5), fy = new OneEuro(1.0, 5), fz = new OneEuro(0.5, 1);
+
+// Webcam position relative to the viewport centre (mm, y up) and the viewport height in mm.
+// Exact in full screen; in a window it leans on screenX/Y, which is approximate.
+function screenGeom(){
+  const mmPerPx = params.screenIn * 25.4 / Math.hypot(screen.width, screen.height);
+  let vx = 0, vy = 0;
+  if (!document.fullscreenElement){
+    const ox = screen.availLeft ?? 0, oy = (screen.availTop ?? 0) < 100 ? 0 : screen.availTop;
+    vx = screenX - ox + (outerWidth - innerWidth) / 2 + innerWidth / 2 - screen.width / 2;
+    vy = screenY - oy + (outerHeight - innerHeight) + innerHeight / 2 - screen.height / 2;
+  }
+  return {
+    vhMm: innerHeight * mmPerPx,
+    camX: -vx * mmPerPx,
+    camY: (screen.height / 2 + vy) * mmPerPx + params.camOff * 10,
+  };
+}
+
+let landmarker = null, video = $('cam'), tracking = false, lastVT = -1;
+let lastMeas = 0, distCm = 0, trackMs = 0, lastStatus = 0;
+async function startCamera(){
+  $('camBtn').disabled = true;
+  try{
+    say('Starting camera…');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+    video.srcObject = stream; video.hidden = false; await video.play();
+    say('Loading face tracking model…');
+    const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
+    const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
+    landmarker = await FaceLandmarker.createFromOptions(fs, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'GPU' },
+      runningMode: 'VIDEO', numFaces: 1,
+      outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false,
+    });
+    tracking = true;
+    $('camBtn').textContent = 'Camera on';
+    $('screenRow').hidden = false;   // physical screen size only matters once the head is tracked
+    $('hint').textContent = 'Move your head side to side, up and down, closer and further. Closing one eye makes it even stronger.';
+    say('Head tracking on · video never leaves your computer');
+  } catch (e){
+    console.error(e);
+    $('camBtn').disabled = false;
+    say(e.name === 'NotAllowedError' ? 'Camera permission denied. You can keep looking around with your mouse.' : 'Could not start the camera: ' + e.message);
+  }
+}
+$('camBtn').addEventListener('click', startCamera);
+
+function trackFace(now){
+  if (!tracking || video.readyState < 2 || video.currentTime === lastVT) return;
+  lastVT = video.currentTime;
+  const t0 = performance.now();
+  const res = landmarker.detectForVideo(video, now);
+  trackMs += (performance.now() - t0 - trackMs) * 0.1;
+  const lm = res.faceLandmarks?.[0]; if (!lm || lm.length < 478) return;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const d = (a, b) => Math.hypot((lm[a].x - lm[b].x) * vw, (lm[a].y - lm[b].y) * vh);
+  // iris diameter in px; per eye take the larger of width and height so head turns don't shrink it
+  const iris = (Math.max(d(469, 471), d(470, 472)) + Math.max(d(474, 476), d(475, 477))) / 2;
+  const f = (vw / 2) / Math.tan(params.camFov * Math.PI / 360);
+  const Z = f * IRIS_MM / iris;
+  const u = (lm[468].x + lm[473].x) / 2 * vw, v = (lm[468].y + lm[473].y) / 2 * vh;
+  const X = (u - vw / 2) * Z / f, Y = (v - vh / 2) * Z / f;   // camera frame, mm, y down
+  const s = screenGeom(), g = params.gain, t = now / 1000;
+  // the camera faces the viewer, so its +x is the viewer's left: mirror x, and flip y to point up
+  eyeTarget.set(
+    fx.filter((s.camX - X) / s.vhMm * g, t),
+    fy.filter((s.camY - Y) / s.vhMm * g, t),
+    fz.filter(Math.max(Z / s.vhMm, 0.3), t),
+  );
+  lastMeas = t; distCm = Z / 10;
+  if (now - lastStatus > 500){
+    lastStatus = now;
+    $('track').innerHTML = `Eye distance <b>${Math.round(distCm)} cm</b> · tracking ${trackMs.toFixed(1)} ms`;
+  }
+}
+
+// mouse fallback
+addEventListener('pointermove', e => {
+  if (tracking || e.pointerType === 'touch' && e.target !== $('gl')) return;
+  const g = params.gain;
+  eyeTarget.x = (e.clientX / innerWidth - 0.5) * 0.9 * g;
+  eyeTarget.y = -(e.clientY / innerHeight - 0.5) * 0.6 * g;
+});
+
+// ---------------- loop ----------------
+let last = performance.now();
+function frameLoop(now){
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (tracking) trackFace(now);
+  if (tracking && lastMeas){
+    // already 1€-filtered: follow directly, nudged ahead along the filtered velocity
+    const lead = Math.min(0.1, now / 1000 - lastMeas + LEAD);
+    eye.set(eyeTarget.x + fx.dx * lead, eyeTarget.y + fy.dx * lead, Math.max(0.3, eyeTarget.z + fz.dx * lead));
+  } else {
+    // mouse: adaptive smoothing, quick when you move a lot, calm when you hold still
+    const dist = eye.distanceTo(eyeTarget);
+    eye.lerp(eyeTarget, 1 - Math.exp(-dt * (8 + 60 * dist)));
+  }
+  updateCamera();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frameLoop);
+}
+
+// ---------------- start with a sample ----------------
+buildMesh(1.5);
+setPhotoTextures(sampleCanvas());
+uniforms.uDepth.value = fallbackDepth(128, 85);
+requestAnimationFrame(frameLoop);
+// sample gallery: CC0 photos from Wikimedia Commons, see samples/CREDITS.md
+const SAMPLES = [
+  ['corridor', 'Vaulted corridor'], ['umbrellas', 'Umbrella alley'], ['library', 'Library'],
+  ['alley', 'Brick alley'], ['railway', 'Railway'],
+];
+function showSample(id){
+  const s = SAMPLES.find(s => s[0] === id) || SAMPLES[0];
+  for (const b of $('gallery').children) b.setAttribute('aria-pressed', b.dataset.id === s[0]);
+  loadPhoto(`samples/${s[0]}.jpg`, s[1]);
+}
+for (const [id, name] of SAMPLES){
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.id = id; b.title = name; b.setAttribute('aria-label', name);
+  b.innerHTML = `<img src="samples/thumbs/${id}.jpg" alt="">`;
+  b.addEventListener('click', () => showSample(id));
+  $('gallery').append(b);
+}
+$('pick').addEventListener('change', () => { for (const b of $('gallery').children) b.setAttribute('aria-pressed', false); });
+say('Loading sample…');
+showSample(new URLSearchParams(location.search).get('photo'));
+// from the landing page's "Use your own photo": browsers won't open a file picker unprompted, so point at it
+if (location.hash === '#own'){
+  $('pick').parentElement.classList.add('nudge');
+  $('hint').textContent = 'Use "Choose photo" to load your own picture, or drop it onto the page.';
+}
+
+// a drawn stand-in shown for the first second, before the sample photo arrives
+function sampleCanvas(){
+  const c = document.createElement('canvas'); c.width = 768; c.height = 512; const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 512); sky.addColorStop(0, '#2b3446'); sky.addColorStop(1, '#c9a27a');
+  g.fillStyle = sky; g.fillRect(0, 0, 768, 512);
+  g.fillStyle = '#1b1f27'; for (let i = 0; i < 14; i++){ const w = 40 + (i * 37) % 50, h = 80 + (i * 53) % 160; g.fillRect(i * 56, 330 - h, w, h + 200); }
+  g.fillStyle = '#12151b'; g.fillRect(0, 420, 768, 92);
+  return c;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Window</title>
+<meta name="description" content="Drop in a photo, turn on your webcam, and your screen becomes a window into the scene. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: hero (text left, framed photo right) → three steps → sample gallery → footer. Stacks on narrow screens. */
+:root{
+  --bg:#0e0f12;
+  --ink:#ece7df;
+  --dim:#9a958d;
+  --edge:rgba(236,231,223,.14);
+  --accent:#7fd1c3;
+  --display:"Fraunces",Georgia,serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body)}
+a{color:inherit}
+main{max-width:1120px;margin:0 auto;padding:0 24px}
+
+.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:56px;align-items:center;min-height:min(88vh,760px);padding:48px 0}
+.eyebrow{font:12px var(--mono);color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin:0 0 16px}
+h1{font:600 clamp(40px,6vw,68px)/1.02 var(--display);margin:0 0 20px;letter-spacing:-.01em}
+.lede{font-size:18px;color:var(--dim);margin:0 0 32px;max-width:34ch}
+.cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn{font:500 15px var(--body);text-decoration:none;border-radius:10px;padding:12px 20px;display:inline-block}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn.primary:hover{background:#fff}
+.btn.ghost{border:1px solid var(--edge);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.private{font-size:13px;color:var(--dim);margin:20px 0 0}
+
+/* the framed photo: the image is larger than the frame and drifts with the pointer, like a scene behind glass */
+.window{position:relative;aspect-ratio:4/3;border-radius:4px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 10px #17181c,0 0 0 11px var(--edge),0 40px 80px -30px rgba(0,0,0,.8)}
+.window img{position:absolute;inset:-9%;width:118%;height:118%;object-fit:cover;transform:translate3d(var(--px,0),var(--py,0),0);transition:transform .25s ease-out}
+.window::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),inset 0 18px 30px -12px rgba(0,0,0,.7),inset 0 -10px 24px -12px rgba(0,0,0,.6);pointer-events:none}
+.window figcaption{position:absolute;left:12px;bottom:10px;font:11px var(--mono);color:rgba(236,231,223,.7);text-shadow:0 1px 2px #000}
+
+section{padding:56px 0;border-top:1px solid var(--edge)}
+h2{font:600 28px/1.15 var(--display);margin:0 0 28px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;list-style:none;margin:0;padding:0}
+.steps li{display:flex;flex-direction:column;gap:6px}
+.steps .n{font:12px var(--mono);color:var(--accent)}
+.steps h3{font:500 17px var(--body);margin:0}
+.steps p{margin:0;color:var(--dim);font-size:15px}
+
+.samples{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.samples a{display:block;text-decoration:none;color:var(--dim);font-size:13px}
+.samples img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--edge);margin-bottom:6px;transition:border-color .15s}
+.samples a:hover img,.samples a:focus-visible img{border-color:var(--accent)}
+.samples a:hover{color:var(--ink)}
+.tips{margin:28px 0 0;color:var(--dim);font-size:14px}
+.tips b{color:var(--ink);font-weight:500}
+
+footer{border-top:1px solid var(--edge);padding:24px 0 40px;font-size:13px;color:var(--dim);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+
+@media (max-width:820px){
+  .hero{grid-template-columns:1fr;gap:36px;min-height:0;padding:32px 0 48px}
+  .window{order:-1}
+  .steps{grid-template-columns:1fr;gap:20px}
+  .samples{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:480px){
+  main{padding:0 16px}
+  .samples{grid-template-columns:repeat(2,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.window img{transition:none;transform:none}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <div>
+      <p class="eyebrow">A browser experiment</p>
+      <h1>Turn your screen into a window.</h1>
+      <p class="lede">Drop in a photo and turn on your webcam. As you move your head, the scene shifts as if it were really there, just behind the glass.</p>
+      <div class="cta">
+        <a class="btn primary" href="app.html">Try the demo →</a>
+        <a class="btn ghost" href="app.html#own">Use your own photo</a>
+      </div>
+      <p class="private">Your photo and camera feed never leave your computer. No server, no sign-up.</p>
+    </div>
+    <figure class="window" id="hero">
+      <img src="samples/corridor.jpg" alt="A long vaulted castle corridor">
+      <figcaption>move your mouse</figcaption>
+    </figure>
+  </div>
+
+  <section aria-labelledby="how">
+    <h2 id="how">How it works</h2>
+    <ol class="steps">
+      <li><span class="n">01</span><h3>Depth from a photo</h3><p>A neural network running in your browser estimates how far away every point in the photo is, and turns the picture into a 3D surface.</p></li>
+      <li><span class="n">02</span><h3>Where are your eyes?</h3><p>The webcam tracks your face and irises. Since the iris is almost the same size in everyone, your distance from the screen can be measured in centimetres.</p></li>
+      <li><span class="n">03</span><h3>Screen = glass</h3><p>Every frame is redrawn for your exact eye position. The screen edge acts like a window frame, hiding parts of the scene and revealing others as you move.</p></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="samples">
+    <h2 id="samples">Start with a sample</h2>
+    <div class="samples">
+      <a href="app.html?photo=corridor"><img src="samples/thumbs/corridor.jpg" alt="" loading="lazy">Vaulted corridor</a>
+      <a href="app.html?photo=umbrellas"><img src="samples/thumbs/umbrellas.jpg" alt="" loading="lazy">Umbrella alley</a>
+      <a href="app.html?photo=library"><img src="samples/thumbs/library.jpg" alt="" loading="lazy">Library</a>
+      <a href="app.html?photo=alley"><img src="samples/thumbs/alley.jpg" alt="" loading="lazy">Brick alley</a>
+      <a href="app.html?photo=railway"><img src="samples/thumbs/railway.jpg" alt="" loading="lazy">Railway</a>
+    </div>
+    <p class="tips"><b>For the strongest effect:</b> go full screen, turn on the camera, close one eye and slowly slide your head sideways. Photos with clear depth work best: corridors, streets, a room seen through a doorway. Chrome or Edge recommended; the depth model downloads once on first use.</p>
+  </section>
+
+  <footer>
+    <span>Deep Window · open-source experiment</span>
+    <span>Sample photos CC0 via <a href="samples/CREDITS.md">Wikimedia Commons</a> · Three.js, Transformers.js, MediaPipe</span>
+  </footer>
+</main>
+
+<script>
+// hero: the photo drifts with the pointer, the way a scene behind a window shifts as you move
+const hero = document.getElementById('hero');
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  addEventListener('pointermove', e => {
+    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
+    hero.style.setProperty('--px', (x * 6).toFixed(2) + '%');
+    hero.style.setProperty('--py', (y * 6).toFixed(2) + '%');
+  });
+}
+</script>
+</body>
+</html>

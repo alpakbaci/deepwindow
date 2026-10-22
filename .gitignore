@@ -1,0 +1,10 @@
+# internal working notes
+PROJE.md
+
+# tooling
+.claude/
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
