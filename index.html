@@ -6,132 +6,212 @@
 <title>Deep Window</title>
 <meta name="description" content="Drop in a photo, turn on your webcam, and your screen becomes a window into the scene. Runs entirely in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: hero (text left, framed photo right) → three steps → sample gallery → footer. Stacks on narrow screens. */
+/* Layout: full-viewport hero that is itself a CSS 3D window (shallow reveal, photo behind it) whose
+   vanishing point follows the pointer → steps → deep green privacy band → edge-to-edge sample cards → footer. */
 :root{
-  --bg:#0e0f12;
-  --ink:#ece7df;
-  --dim:#9a958d;
-  --edge:rgba(236,231,223,.14);
-  --accent:#7fd1c3;
+  --bg:#0b0b0e;
+  --ink:#f3eee6;
+  --dim:#a39d94;
+  --edge:rgba(243,238,230,.12);
+  --jade:#8fdcb8;      /* accent text on the dark background */
+  --emerald:#2a8a66;   /* buttons */
+  --forest:#123a2e;    /* privacy band */
+  --grad:linear-gradient(100deg,#34a57a,#1f6e52);
   --display:"Fraunces",Georgia,serif;
   --body:"IBM Plex Sans",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --gutter:clamp(16px,4vw,56px);
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body)}
 a{color:inherit}
-main{max-width:1120px;margin:0 auto;padding:0 24px}
+.wrap{padding-left:var(--gutter);padding-right:var(--gutter)}
 
-.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:56px;align-items:center;min-height:min(88vh,760px);padding:48px 0}
-.eyebrow{font:12px var(--mono);color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin:0 0 16px}
-h1{font:600 clamp(40px,6vw,68px)/1.02 var(--display);margin:0 0 20px;letter-spacing:-.01em}
-.lede{font-size:18px;color:var(--dim);margin:0 0 32px;max-width:34ch}
-.cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-.btn{font:500 15px var(--body);text-decoration:none;border-radius:10px;padding:12px 20px;display:inline-block}
-.btn.primary{background:var(--ink);color:var(--bg)}
-.btn.primary:hover{background:#fff}
-.btn.ghost{border:1px solid var(--edge);color:var(--ink)}
+/* ---------- nav ---------- */
+nav{position:absolute;z-index:5;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:22px var(--gutter)}
+.brand{font:600 20px var(--display);text-decoration:none;display:flex;align-items:center;gap:10px}
+.brand i{width:22px;height:22px;border:2px solid var(--jade);border-radius:3px;box-shadow:inset 0 0 0 4px var(--bg),inset 0 0 0 6px var(--emerald)}
+.nav-links{display:flex;gap:24px;align-items:center;font-size:14px}
+.nav-links a{text-decoration:none;color:var(--dim)}
+.nav-links a:hover{color:var(--ink)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;gap:10px;font:500 16px var(--body);text-decoration:none;border-radius:999px;padding:15px 26px;transition:transform .15s,box-shadow .15s,background .15s}
+.btn.primary{background:var(--grad);color:#f2fff8;box-shadow:0 10px 40px -12px rgba(52,165,122,.75)}
+.btn.primary:hover{transform:translateY(-2px);box-shadow:0 16px 48px -12px rgba(52,165,122,.9)}
+.btn.ghost{border:1px solid rgba(243,238,230,.3);background:rgba(11,11,14,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .btn.ghost:hover{border-color:var(--ink)}
-.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.private{font-size:13px;color:var(--dim);margin:20px 0 0}
+.btn.small{padding:9px 18px;font-size:14px}
+.btn:focus-visible,a:focus-visible{outline:2px solid var(--jade);outline-offset:3px}
 
-/* the framed photo: the image is larger than the frame and drifts with the pointer, like a scene behind glass */
-.window{position:relative;aspect-ratio:4/3;border-radius:4px;overflow:hidden;background:#000;
-  box-shadow:0 0 0 10px #17181c,0 0 0 11px var(--edge),0 40px 80px -30px rgba(0,0,0,.8)}
-.window img{position:absolute;inset:-9%;width:118%;height:118%;object-fit:cover;transform:translate3d(var(--px,0),var(--py,0),0);transition:transform .25s ease-out}
-.window::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),inset 0 18px 30px -12px rgba(0,0,0,.7),inset 0 -10px 24px -12px rgba(0,0,0,.6);pointer-events:none}
-.window figcaption{position:absolute;left:12px;bottom:10px;font:11px var(--mono);color:rgba(236,231,223,.7);text-shadow:0 1px 2px #000}
+/* ---------- hero: CSS 3D tunnel ---------- */
+.hero{position:relative;height:100vh;height:100svh;min-height:560px;overflow:hidden;isolation:isolate}
+/* moving perspective-origin while the box stays put is exactly an off-axis projection */
+.stage{position:absolute;inset:0;perspective:900px;perspective-origin:calc(50% + var(--ex,0) * 45%) calc(50% + var(--ey,0) * 45%)}
+/* a shallow window reveal: plain walls from the glass back to the photo, lit from the scene side */
+.box{position:absolute;inset:0;transform-style:preserve-3d;--d:120px}
+.wall{position:absolute;backface-visibility:visible;background:linear-gradient(to var(--fade),#0d0f0e,#232826)}
+.wall.top{left:0;top:0;width:100%;height:var(--d);transform-origin:top;transform:rotateX(-90deg);--fade:bottom}
+.wall.bottom{left:0;bottom:0;width:100%;height:var(--d);transform-origin:bottom;transform:rotateX(90deg);--fade:top;filter:brightness(.7)}
+.wall.left{left:0;top:0;width:var(--d);height:100%;transform-origin:left;transform:rotateY(90deg);--fade:right;filter:brightness(.85)}
+.wall.right{right:0;top:0;width:var(--d);height:100%;transform-origin:right;transform:rotateY(-90deg);--fade:left;filter:brightness(.85)}
+.back{position:absolute;inset:0;transform:translateZ(calc(var(--d) * -1));background:#000}
+.back img{width:100%;height:100%;object-fit:cover;display:block}
+.back::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 60px rgba(0,0,0,.55)}
+/* scrim so the copy reads over the scene */
+.hero::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to top,rgba(11,11,14,.95) 0%,rgba(11,11,14,.7) 34%,rgba(11,11,14,.15) 68%,rgba(11,11,14,0) 80%),
+             linear-gradient(to right,rgba(11,11,14,.55),rgba(11,11,14,0) 55%),
+             linear-gradient(to bottom,rgba(11,11,14,.6),rgba(11,11,14,0) 20%)}
+h1{text-shadow:0 2px 30px rgba(0,0,0,.45)}
+.hero-copy{position:absolute;z-index:2;left:var(--gutter);right:var(--gutter);bottom:clamp(32px,7vh,72px);
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px 48px;align-items:end}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--jade);margin:0 0 18px}
+h1{font:600 clamp(46px,8.4vw,132px)/.95 var(--display);letter-spacing:-.025em;margin:0}
+h1 em{font-style:italic;font-weight:500;color:var(--jade)}
+.hero-side{max-width:380px;display:flex;flex-direction:column;gap:22px;padding-bottom:10px}
+.lede{font-size:18px;color:#d8d2c8;margin:0}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.hint{position:absolute;z-index:2;top:50%;right:var(--gutter);transform:translateY(-50%) rotate(90deg);transform-origin:right center;font:12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(243,238,230,.55)}
 
-section{padding:56px 0;border-top:1px solid var(--edge)}
-h2{font:600 28px/1.15 var(--display);margin:0 0 28px}
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;list-style:none;margin:0;padding:0}
-.steps li{display:flex;flex-direction:column;gap:6px}
-.steps .n{font:12px var(--mono);color:var(--accent)}
-.steps h3{font:500 17px var(--body);margin:0}
-.steps p{margin:0;color:var(--dim);font-size:15px}
+/* ---------- sections ---------- */
+section{padding:clamp(64px,10vw,128px) 0}
+.kicker{font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--jade);margin:0 0 14px}
+h2{font:600 clamp(32px,4.4vw,60px)/1.02 var(--display);letter-spacing:-.02em;margin:0 0 clamp(36px,5vw,64px);max-width:16ch}
+h2 em{font-style:italic;font-weight:500;color:var(--jade)}
 
-.samples{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
-.samples a{display:block;text-decoration:none;color:var(--dim);font-size:13px}
-.samples img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--edge);margin-bottom:6px;transition:border-color .15s}
-.samples a:hover img,.samples a:focus-visible img{border-color:var(--accent)}
-.samples a:hover{color:var(--ink)}
-.tips{margin:28px 0 0;color:var(--dim);font-size:14px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,40px);list-style:none;margin:0;padding:0}
+.steps li{border-top:1px solid var(--edge);padding-top:24px}
+.steps .n{display:block;font:500 clamp(48px,5vw,72px)/1 var(--display);font-style:italic;color:var(--jade);margin-bottom:18px}
+.steps h3{font:500 20px var(--body);margin:0 0 8px}
+.steps p{margin:0;color:var(--dim)}
+
+.band{background:var(--forest);color:var(--ink);padding:clamp(48px,7vw,96px) var(--gutter);display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:32px 64px;align-items:end}
+.band h2{color:inherit;margin:0;max-width:14ch}
+.band h2 em{color:var(--jade)}
+.facts{list-style:none;margin:0;padding:0;display:grid;gap:14px;font:500 17px var(--body)}
+.facts li{display:flex;gap:12px;align-items:baseline;border-bottom:1px solid rgba(143,220,184,.2);padding-bottom:12px}
+.facts li::before{content:"✓";font-weight:600;color:var(--jade)}
+
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(10px,1.4vw,18px)}
+.card{position:relative;display:block;aspect-ratio:4/5;border-radius:14px;overflow:hidden;text-decoration:none;background:#16151a}
+.card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.card::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75),rgba(0,0,0,0) 45%);transition:opacity .3s}
+.card span{position:absolute;z-index:1;left:16px;right:16px;bottom:14px;font:500 16px var(--body);display:flex;justify-content:space-between;align-items:center}
+.card span::after{content:"→";color:var(--jade);transform:translateX(-6px);opacity:0;transition:.25s}
+.card:hover img,.card:focus-visible img{transform:scale(1.06)}
+.card:hover span::after,.card:focus-visible span::after{transform:none;opacity:1}
+.tips{margin:clamp(28px,4vw,44px) 0 0;color:var(--dim);max-width:72ch}
 .tips b{color:var(--ink);font-weight:500}
 
-footer{border-top:1px solid var(--edge);padding:24px 0 40px;font-size:13px;color:var(--dim);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+footer{border-top:1px solid var(--edge);padding:28px var(--gutter) 40px;font-size:14px;color:var(--dim);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
 
-@media (max-width:820px){
-  .hero{grid-template-columns:1fr;gap:36px;min-height:0;padding:32px 0 48px}
-  .window{order:-1}
-  .steps{grid-template-columns:1fr;gap:20px}
-  .samples{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){
+  .hero-copy{grid-template-columns:1fr}
+  .hint{display:none}
+  .steps{grid-template-columns:1fr}
+  .band{grid-template-columns:1fr}
+  .cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(200px,62%);overflow-x:auto;scroll-snap-type:x mandatory;margin:0 calc(var(--gutter) * -1);padding:0 var(--gutter);scrollbar-width:none}
+  .card{scroll-snap-align:start}
+  .box{--d:80px}
+  .nav-links a:not(.btn){display:none}
 }
-@media (max-width:480px){
-  main{padding:0 16px}
-  .samples{grid-template-columns:repeat(2,1fr)}
-}
-@media (prefers-reduced-motion:reduce){.window img{transition:none;transform:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<main>
-  <div class="hero">
-    <div>
-      <p class="eyebrow">A browser experiment</p>
-      <h1>Turn your screen into a window.</h1>
-      <p class="lede">Drop in a photo and turn on your webcam. As you move your head, the scene shifts as if it were really there, just behind the glass.</p>
-      <div class="cta">
-        <a class="btn primary" href="app.html">Try the demo →</a>
-        <a class="btn ghost" href="app.html#own">Use your own photo</a>
-      </div>
-      <p class="private">Your photo and camera feed never leave your computer. No server, no sign-up.</p>
+<header class="hero">
+  <div class="stage" id="stage" aria-hidden="true">
+    <div class="box">
+      <div class="wall top"></div><div class="wall bottom"></div><div class="wall left"></div><div class="wall right"></div>
+      <div class="back"><img src="samples/corridor.jpg" alt=""></div>
     </div>
-    <figure class="window" id="hero">
-      <img src="samples/corridor.jpg" alt="A long vaulted castle corridor">
-      <figcaption>move your mouse</figcaption>
-    </figure>
   </div>
 
-  <section aria-labelledby="how">
-    <h2 id="how">How it works</h2>
+  <nav>
+    <a class="brand" href="./"><i aria-hidden="true"></i>Deep Window</a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#samples">Samples</a>
+      <a class="btn ghost small" href="app.html">Open app</a>
+    </div>
+  </nav>
+
+  <div class="hero-copy">
+    <div>
+      <p class="eyebrow">A browser experiment</p>
+      <h1>Turn your screen into a <em>window.</em></h1>
+    </div>
+    <div class="hero-side">
+      <p class="lede">Drop in any photo and turn on your webcam. As you move your head, the scene shifts as if it were really there, just behind the glass.</p>
+      <div class="cta">
+        <a class="btn primary" href="app.html">Try the demo <span aria-hidden="true">→</span></a>
+        <a class="btn ghost" href="app.html#own">Use your own photo</a>
+      </div>
+    </div>
+  </div>
+  <p class="hint" aria-hidden="true">Move your mouse</p>
+</header>
+
+<main>
+  <section id="how" class="wrap" aria-labelledby="how-title">
+    <p class="kicker">How it works</p>
+    <h2 id="how-title">Three steps, all <em>inside your browser.</em></h2>
     <ol class="steps">
-      <li><span class="n">01</span><h3>Depth from a photo</h3><p>A neural network running in your browser estimates how far away every point in the photo is, and turns the picture into a 3D surface.</p></li>
-      <li><span class="n">02</span><h3>Where are your eyes?</h3><p>The webcam tracks your face and irises. Since the iris is almost the same size in everyone, your distance from the screen can be measured in centimetres.</p></li>
-      <li><span class="n">03</span><h3>Screen = glass</h3><p>Every frame is redrawn for your exact eye position. The screen edge acts like a window frame, hiding parts of the scene and revealing others as you move.</p></li>
+      <li><span class="n">01</span><h3>Depth from a photo</h3><p>A neural network running on your machine estimates how far away every point in the picture is, and turns it into a 3D surface.</p></li>
+      <li><span class="n">02</span><h3>Where are your eyes?</h3><p>Your webcam tracks your irises. They are almost the same size in everyone, so your distance from the screen is measured in real centimetres.</p></li>
+      <li><span class="n">03</span><h3>Screen becomes glass</h3><p>Every frame is redrawn for your exact eye position. The screen edge acts like a window frame, hiding and revealing the scene as you move.</p></li>
     </ol>
   </section>
 
-  <section aria-labelledby="samples">
-    <h2 id="samples">Start with a sample</h2>
-    <div class="samples">
-      <a href="app.html?photo=corridor"><img src="samples/thumbs/corridor.jpg" alt="" loading="lazy">Vaulted corridor</a>
-      <a href="app.html?photo=umbrellas"><img src="samples/thumbs/umbrellas.jpg" alt="" loading="lazy">Umbrella alley</a>
-      <a href="app.html?photo=library"><img src="samples/thumbs/library.jpg" alt="" loading="lazy">Library</a>
-      <a href="app.html?photo=alley"><img src="samples/thumbs/alley.jpg" alt="" loading="lazy">Brick alley</a>
-      <a href="app.html?photo=railway"><img src="samples/thumbs/railway.jpg" alt="" loading="lazy">Railway</a>
+  <div class="band" role="region" aria-label="Privacy">
+    <h2>Nothing leaves <em>your computer.</em></h2>
+    <ul class="facts">
+      <li>Photos and camera feed stay on your device</li>
+      <li>No server, no account, no tracking</li>
+      <li>Open source under the MIT license</li>
+    </ul>
+  </div>
+
+  <section id="samples" class="wrap" aria-labelledby="samples-title">
+    <p class="kicker">Samples</p>
+    <h2 id="samples-title">Pick a scene and <em>look inside.</em></h2>
+    <div class="cards">
+      <a class="card" href="app.html?photo=corridor"><img src="samples/cards/corridor.jpg" alt="" loading="lazy"><span>Vaulted corridor</span></a>
+      <a class="card" href="app.html?photo=umbrellas"><img src="samples/cards/umbrellas.jpg" alt="" loading="lazy"><span>Umbrella alley</span></a>
+      <a class="card" href="app.html?photo=library"><img src="samples/cards/library.jpg" alt="" loading="lazy"><span>Library</span></a>
+      <a class="card" href="app.html?photo=alley"><img src="samples/cards/alley.jpg" alt="" loading="lazy"><span>Brick alley</span></a>
+      <a class="card" href="app.html?photo=railway"><img src="samples/cards/railway.jpg" alt="" loading="lazy"><span>Railway</span></a>
     </div>
     <p class="tips"><b>For the strongest effect:</b> go full screen, turn on the camera, close one eye and slowly slide your head sideways. Photos with clear depth work best: corridors, streets, a room seen through a doorway. Chrome or Edge recommended; the depth model downloads once on first use.</p>
   </section>
-
-  <footer>
-    <span>Deep Window · open-source experiment</span>
-    <span>Sample photos CC0 via <a href="samples/CREDITS.md">Wikimedia Commons</a> · Three.js, Transformers.js, MediaPipe</span>
-  </footer>
 </main>
 
+<footer>
+  <span>Deep Window · open-source experiment</span>
+  <span>Sample photos CC0 via <a href="samples/CREDITS.md">Wikimedia Commons</a> · Three.js, Transformers.js, MediaPipe</span>
+</footer>
+
 <script>
-// hero: the photo drifts with the pointer, the way a scene behind a window shifts as you move
-const hero = document.getElementById('hero');
-if (!matchMedia('(prefers-reduced-motion: reduce)').matches){
-  addEventListener('pointermove', e => {
-    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
-    hero.style.setProperty('--px', (x * 6).toFixed(2) + '%');
-    hero.style.setProperty('--py', (y * 6).toFixed(2) + '%');
-  });
+// hero: the tunnel's vanishing point follows the pointer (an off-axis view in pure CSS);
+// with no pointer around it drifts on its own so the depth still reads
+const stage = document.getElementById('stage');
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let tx = 0, ty = 0, x = 0, y = 0, lastMove = -1e9;
+addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  tx = (e.clientX / innerWidth - 0.5) * 2; ty = (e.clientY / innerHeight - 0.5) * 2; lastMove = performance.now();
+});
+function tick(now){
+  if (now - lastMove > 2500){ tx = Math.sin(now / 2600) * 0.6; ty = Math.sin(now / 3900) * 0.3; }
+  x += (tx - x) * 0.06; y += (ty - y) * 0.06;
+  stage.style.setProperty('--ex', x.toFixed(4)); stage.style.setProperty('--ey', y.toFixed(4));
+  requestAnimationFrame(tick);
 }
+if (!still) requestAnimationFrame(tick);
 </script>
 </body>
 </html>
