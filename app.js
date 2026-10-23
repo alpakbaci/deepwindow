@@ -737,6 +737,18 @@ function resetNav(){ nav.pos.copy(nav.home); nav.yaw = 0; if (model) model.rotat
 const keys = new Set();
 const NAV_KEYS = new Set(['w', 'a', 's', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 const keyName = e => e.key.length === 1 ? e.key.toLowerCase() : e.key;
+// clean view for watching or recording: H (or the buttons) hides and shows the panels
+function toggleUi(){
+  const bare = document.body.classList.toggle('bare');
+  $('showUi').hidden = !bare;
+  if (!bare) $('hideUi').focus();
+}
+$('hideUi').addEventListener('click', toggleUi);
+$('showUi').addEventListener('click', toggleUi);
+addEventListener('keydown', e => {
+  if (keyName(e) === 'h' && !(e.target instanceof HTMLInputElement) && !e.metaKey && !e.ctrlKey && !e.altKey) toggleUi();
+});
+
 addEventListener('keydown', e => {
   if (mode !== 'model' || e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = keyName(e);
@@ -876,3 +888,6 @@ function sampleCanvas(){
   g.fillStyle = '#12151b'; g.fillRect(0, 420, 768, 92);
   return c;
 }
+
+// tells the fallback script in app.html that the app started (see #fail)
+document.documentElement.dataset.ready = '1';

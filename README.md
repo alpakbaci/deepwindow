@@ -40,6 +40,7 @@ The app picks Object or Walk-through from the model's size, assuming it is in me
 | `Q` / `E` | Down / up |
 | `Shift` | Move faster |
 | `R` | Back to the start |
+| `H` | Hide or show the controls (any mode) |
 
 Draco, meshopt and KTX2 compressed files are supported, and embedded animations play automatically. Files up to **100 MB** are accepted; larger ones are refused, because their textures can take gigabytes of GPU memory. Use a single `.glb` file; a `.gltf` that points to separate texture and `.bin` files can't be loaded from one file. Free models: [Poly Haven](https://polyhaven.com/models) (CC0), [Sketchfab](https://sketchfab.com/features/gltf) (check each model's license).
 
@@ -66,7 +67,7 @@ Then open <http://localhost:8000>. On first use the depth model (tens of MB) dow
 
 ## Tips for the strongest effect
 
-- Go **full screen** and set your screen size under the camera controls. **Turn off camera** stops the webcam at any time.
+- Go **full screen** and set your screen size under the camera controls. **Turn off camera** stops the webcam at any time, and **H** hides the controls for a clean view.
 - **Close one eye.** With both eyes open, stereo vision tells your brain the screen is flat.
 - Pick photos with **clear depth**: corridors, streets, a room seen through a doorway. Flat subjects shot from above don't work well.
 - Chrome or Edge recommended (WebGPU). Other browsers fall back to slower CPU inference.

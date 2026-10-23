@@ -32,11 +32,13 @@
 </div>
 
 <div class="panel" id="ctl">
+  <p class="phone-note" role="note">Made for a computer with a webcam. On a phone or tablet you can look around by dragging, but head tracking will not line up with your screen.</p>
   <div class="gallery" id="gallery" role="group" aria-label="Sample photos"></div>
   <div class="row">
     <label class="file" for="pick" title="A photo, a .glb 3D model or a .spz splat">Open file<input id="pick" type="file" accept="image/*,.glb,.gltf,.spz"></label>
     <button id="camBtn" class="ghost" type="button">Turn on camera</button>
     <button id="full" class="ghost" type="button">Full screen</button>
+    <button id="hideUi" class="ghost" type="button" title="Hide the panels for a clean view (H)">Hide controls</button>
   </div>
   <div class="seg" id="frame" role="radiogroup" aria-label="Window style">
     <button type="button" role="radio" data-frame="sill">Frame</button>
@@ -84,6 +86,8 @@
   <span class="badge" title="Face tracking runs in your browser. The video is never uploaded.">On-device</span>
   <figcaption id="camMsg" aria-live="polite">Looking for you…</figcaption>
 </figure>
+<button id="showUi" type="button" hidden>Show controls <kbd>H</kbd></button>
+<div id="fail" role="alert" hidden><div><h2>Deep Window could not start</h2><p id="failMsg"></p><p><a href="./">Back to the start page</a></p></div></div>
 <div id="drop" hidden>Drop a photo, a .glb model or a .spz splat</div>
 <div class="panel" id="loader" role="status" aria-live="polite" hidden>
   <div class="ld-head"><span id="ldTitle">Loading…</span><span id="ldPct"></span></div>
@@ -92,5 +96,18 @@
 </div>
 
 <script type="module" src="app.js"></script>
+<script>
+// Fallback when the app can't run: no WebGL2 at all, or the module (or a library it imports from the
+// CDN) failed to load, so app.js never got to mark the page ready.
+(function(){
+  function fail(msg){ document.getElementById('failMsg').textContent = msg; document.getElementById('fail').hidden = false; }
+  var gl = document.createElement('canvas').getContext('webgl2');
+  if (!gl){ fail('Your browser or graphics driver does not support WebGL2, which Deep Window needs to draw the scene. Try a recent Chrome, Edge, Firefox or Safari.'); return; }
+  setTimeout(function(){
+    if (!document.documentElement.dataset.ready)
+      fail('Its code did not load. Check your internet connection (the 3D library comes from cdn.jsdelivr.net) and reload the page. Ad or script blockers can also stop it.');
+  }, 20000);
+})();
+</script>
 </body>
 </html>

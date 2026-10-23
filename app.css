@@ -72,3 +72,18 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
 .ld-note{font-size:12px;color:var(--dim)}
 #drop{position:fixed;inset:0;display:grid;place-items:center;background:rgba(14,15,18,.7);font:500 20px var(--display);pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* phone note, only on touch-first devices */
+.phone-note{display:none;font-size:12px;line-height:1.45;margin:0;padding:8px 10px;border-left:2px solid var(--accent);background:rgba(255,255,255,.04)}
+@media (pointer:coarse) and (hover:none){.phone-note{display:block}}
+/* clean view: panels hidden (H), a small pill brings them back */
+body.bare #top,body.bare #ctl{display:none}
+#showUi{position:fixed;left:16px;bottom:16px;z-index:5;font:500 12px var(--body);color:var(--ink);background:rgba(18,19,23,.6);border:1px solid var(--edge);border-radius:999px;padding:6px 12px;opacity:.35;transition:opacity .2s}
+#showUi:hover,#showUi:focus-visible{opacity:1}
+#showUi kbd{font:11px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 4px;margin-left:4px}
+/* can't-start screen */
+#fail{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--bg);padding:24px}
+#fail>div{max-width:440px}
+#fail h2{font:600 24px/1.2 var(--display);margin:0 0 10px}
+#fail p{color:var(--dim);margin:0 0 12px}
+#fail a{color:var(--accent)}

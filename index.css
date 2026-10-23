@@ -67,6 +67,10 @@ h1 em{font-style:italic;font-weight:500;color:var(--jade)}
 .cta{display:flex;gap:12px;flex-wrap:wrap}
 /* both actions the same width, side by side or stacked */
 .cta .btn{flex:1 1 0;min-width:200px;justify-content:center}
+.needs{font-size:13px;line-height:1.5;color:var(--dim);margin:-6px 0 0}
+/* only shown on touch-first devices, where head tracking can't match the screen */
+.phone-note{display:none;font-size:13px;line-height:1.5;margin:0;padding:10px 12px;border-left:2px solid var(--jade);background:rgba(11,11,14,.55);color:var(--ink)}
+@media (pointer:coarse) and (hover:none){.phone-note{display:block}}
 .hint{position:absolute;z-index:2;top:50%;right:var(--gutter);transform:translateY(-50%) rotate(90deg);transform-origin:right center;font:12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(243,238,230,.55)}
 
 /* ---------- sections ---------- */
