@@ -3,6 +3,9 @@ import * as THREE from 'three';
 const $ = id => document.getElementById(id);
 const statusEl = $('status');
 const say = (html) => { statusEl.innerHTML = html; };
+// anything that comes from outside (file names, error messages) is escaped before it reaches say():
+// a file named <img onerror=…>.jpg must show up as text, not run
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // ---------------- renderer ----------------
 const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true });
@@ -248,7 +251,9 @@ async function getDepth(){
     env.allowLocalModels = false;
     device = ('gpu' in navigator && await navigator.gpu.requestAdapter().catch(() => null)) ? 'webgpu' : 'wasm';
     const files = {};
+    // pinned to a commit so the model can't change under us; see README "What loads from the internet"
     depthPipe = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', {
+      revision: '4472b7362082ad9968fee890ca0f1e5aca36b93d',
       device, dtype: device === 'webgpu' ? 'fp16' : 'q8',
       progress_callback: (p) => {
         if (p.status === 'progress' && p.total){ files[p.file] = [p.loaded, p.total];
@@ -281,7 +286,7 @@ async function loadPhoto(src, label){
     setMode('photo');
     setPhotoTextures(cv);
     uniforms.uDepth.value?.dispose(); uniforms.uDepth.value = fallbackDepth(128, Math.round(128 * ch / cw));
-    say(`${label} · estimating depth…`);
+    say(`${esc(label)} · estimating depth…`);
 
     try{
       const pipe = await getDepth();
@@ -293,13 +298,13 @@ async function loadPhoto(src, label){
       const dimg = out.depth;
       uniforms.uDepth.value.dispose();
       uniforms.uDepth.value = depthTexture(new Uint8Array(dimg.data), dimg.width, dimg.height);
-      say(`${label} · depth <b>${Math.round(performance.now() - t0)} ms</b> (${device === 'webgpu' ? 'WebGPU' : 'CPU'})`);
+      say(`${esc(label)} · depth <b>${Math.round(performance.now() - t0)} ms</b> (${device === 'webgpu' ? 'WebGPU' : 'CPU'})`);
     } catch (e){
       console.error(e);
       say(`Could not load the depth model, showing placeholder depth. Check your connection.`);
     }
   } catch (e){
-    say(e.message);
+    say(esc(e.message));
   } finally { busy = false; hideLoader(); openQueued(); }
 }
 
@@ -316,11 +321,11 @@ function openQueued(){ const q = queued; queued = null; if (q) openFile(q); }
 function openFile(f){
   if (!f) return;
   if (isOtherSplat(f)){
-    say(`${f.name}: only .spz splats are supported. Convert it to .spz first; it is about 10× smaller than .ply.`);
+    say(`${esc(f.name)}: only .spz splats are supported. Convert it to .spz first; it is about 10× smaller than .ply.`);
     return;
   }
   if ((isModelFile(f) || isSplatFile(f)) && f.size > MAX_MODEL_MB * 1e6){
-    say(`${f.name} is ${Math.round(f.size / 1e6)} MB. Files up to ${MAX_MODEL_MB} MB are supported; try a lighter or compressed version.`);
+    say(`${esc(f.name)} is ${Math.round(f.size / 1e6)} MB. Files up to ${MAX_MODEL_MB} MB are supported; try a lighter or compressed version.`);
     return;
   }
   if (busy){ queued = f; return; }
@@ -466,26 +471,47 @@ async function startCamera(){
     say('Starting camera…');
     const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
     video.srcObject = stream; $('camBox').hidden = false; await video.play(); sizeMarks();
-    say('Loading face tracking model…');
-    const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
-    const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
-    landmarker = await FaceLandmarker.createFromOptions(fs, {
-      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'GPU' },
-      runningMode: 'VIDEO', numFaces: 1,
-      outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false,
-    });
+    if (!landmarker){   // kept after the camera is turned off, so turning it back on is instant
+      say('Loading face tracking model…');
+      const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
+      const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
+      landmarker = await FaceLandmarker.createFromOptions(fs, {
+        baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'GPU' },
+        runningMode: 'VIDEO', numFaces: 1,
+        outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false,
+      });
+    }
     tracking = true;
-    $('camBtn').textContent = 'Camera on';
+    $('camBtn').textContent = 'Turn off camera'; $('camBtn').disabled = false;
     $('screenRow').hidden = false;   // physical screen size only matters once the head is tracked
     $('hint').textContent = 'Move your head side to side, up and down, closer and further. Closing one eye makes it even stronger.';
     say('Head tracking on · video never leaves your computer');
   } catch (e){
     console.error(e);
+    releaseStream();
     $('camBtn').disabled = false;
-    say(e.name === 'NotAllowedError' ? 'Camera permission denied. You can keep looking around with your mouse.' : 'Could not start the camera: ' + e.message);
+    say(e.name === 'NotAllowedError' ? 'Camera permission denied. You can keep looking around with your mouse.' : 'Could not start the camera: ' + esc(e.message));
   }
 }
-$('camBtn').addEventListener('click', startCamera);
+// stopping every track is what turns the webcam (and its light) off
+function releaseStream(){
+  for (const t of video.srcObject?.getTracks() || []) t.stop();
+  video.srcObject = null; $('camBox').hidden = true;
+}
+function stopCamera(){
+  tracking = false; lastMeas = 0;
+  releaseStream();
+  // reset the "it's really your eyes" guide so it greets you again next time
+  guide = 'search'; lost = false; $('camBox').classList.remove('lost'); camMsg('Looking for you…');
+  mctx.clearRect(0, 0, marks.width, marks.height);
+  for (const f of [fx, fy, fz]){ f.x = null; f.dx = 0; }
+  eyeTarget.set(0, 0, EZ0);   // back to the mouse's resting eye
+  $('track').textContent = '';
+  $('camBtn').textContent = 'Turn on camera';
+  $('hint').textContent = 'Without the camera, look around with your mouse. Drop a photo, a .glb 3D model or a .spz splat onto the page.';
+  say('Camera off');
+}
+$('camBtn').addEventListener('click', () => tracking ? stopCamera() : startCamera());
 
 function trackFace(now){
   if (!tracking || video.readyState < 2 || video.currentTime === lastVT) return;
@@ -609,7 +635,7 @@ async function loadModel(file, opts = {}){
     placeModel(opts.kind ?? (Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4 ? 'world' : 'object'));
   } catch (e){
     console.error(e);
-    say(`Could not open this model: ${e.message}. Use a single .glb file (a .gltf with separate files will not load).`);
+    say(`Could not open this model: ${esc(e.message)}. Use a single .glb file (a .gltf with separate files will not load).`);
   } finally { busy = false; hideLoader(); openQueued(); }
 }
 
@@ -643,7 +669,7 @@ async function loadSplat(file, opts = {}){
     placeModel(opts.kind ?? (Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4 ? 'world' : 'object'));
   } catch (e){
     console.error(e);
-    say(`Could not open this splat: ${e.message}`);
+    say(`Could not open this splat: ${esc(e.message)}`);
   } finally { busy = false; hideLoader(); openQueued(); }
 }
 // most .spz files are stored upside down (camera-style axes, y down), which is why Spark's own
@@ -700,7 +726,7 @@ function placeModel(kind){
   resetNav();
   for (const b of $('viewAs').children) b.setAttribute('aria-checked', b.dataset.kind === kind);
   const [what, hint] = PLACEMENT_TEXT[kind];
-  say(`${modelInfo.label} · ${what}${modelInfo.credit ? ' · ' + modelInfo.credit : ''}`);
+  say(`${esc(modelInfo.label)} · ${what}${modelInfo.credit ? ' · ' + esc(modelInfo.credit) : ''}`);
   $('hint').textContent = hint;
 }
 for (const b of $('viewAs').children) b.addEventListener('click', () => placeModel(b.dataset.kind));
@@ -818,7 +844,7 @@ async function showSampleModel(id){
     while (busy) await new Promise(r => setTimeout(r, 100));   // a photo still estimating depth
     const opts = { id, label: name, credit, kind, home };
     await (isSplatFile({ name: file }) ? loadSplat : loadModel)(new File([blob], file), opts);
-  } catch (e){ hideLoader(); say(`Could not load the sample: ${e.message}`); }
+  } catch (e){ hideLoader(); say(`Could not load the sample: ${esc(e.message)}`); }
 }
 for (const { id, name } of SAMPLE_MODELS){
   const b = document.createElement('button');
