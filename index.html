@@ -104,6 +104,11 @@ h2 em{font-style:italic;font-weight:500;color:var(--jade)}
 .card span::after{content:"→";color:var(--jade);transform:translateX(-6px);opacity:0;transition:.25s}
 .card:hover img,.card:focus-visible img{transform:scale(1.06)}
 .card:hover span::after,.card:focus-visible span::after{transform:none;opacity:1}
+.callout{margin-top:clamp(28px,4vw,44px);border:1px solid var(--edge);border-radius:14px;padding:22px 24px;display:flex;gap:20px 32px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:rgba(143,220,184,.04)}
+.callout .kicker{margin-bottom:6px}
+.callout p:last-child{margin:0;max-width:60ch;color:var(--dim)}
+.callout b{color:var(--ink);font-weight:500}
+kbd{font:12px var(--mono);color:var(--ink);border:1px solid var(--edge);border-bottom-width:2px;border-radius:4px;padding:0 5px;margin-right:2px}
 .tips{margin:clamp(28px,4vw,44px) 0 0;color:var(--dim);max-width:72ch}
 .tips b{color:var(--ink);font-weight:500}
 
@@ -185,6 +190,13 @@ footer{border-top:1px solid var(--edge);padding:28px var(--gutter) 40px;font-siz
       <a class="card" href="app.html?photo=library"><img src="samples/cards/library.jpg" alt="" loading="lazy"><span>Library</span></a>
       <a class="card" href="app.html?photo=alley"><img src="samples/cards/alley.jpg" alt="" loading="lazy"><span>Brick alley</span></a>
       <a class="card" href="app.html?photo=railway"><img src="samples/cards/railway.jpg" alt="" loading="lazy"><span>Railway</span></a>
+    </div>
+    <div class="callout">
+      <div>
+        <p class="kicker">Also works with 3D models</p>
+        <p>Drop a <b>.glb</b> file into the app. Small objects float just behind the glass; rooms and landscapes open at life size and you can walk through them with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.</p>
+      </div>
+      <a class="btn ghost" href="app.html#own">Open a model →</a>
     </div>
     <p class="tips"><b>For the strongest effect:</b> go full screen, turn on the camera, close one eye and slowly slide your head sideways. Photos with clear depth work best: corridors, streets, a room seen through a doorway. Chrome or Edge recommended; the depth model downloads once on first use.</p>
   </section>

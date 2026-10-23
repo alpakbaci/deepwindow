@@ -40,6 +40,8 @@ button:focus-visible,.file:focus-within,input:focus-visible{outline:2px solid va
 .sliders{display:flex;flex-direction:column;gap:8px}
 .sliders summary{font:500 12px var(--body);color:var(--ink);cursor:pointer;margin-bottom:2px}
 .note{font-size:11px;color:var(--dim);margin:0}
+.keys{font-size:12px;color:var(--dim);margin:0;line-height:2}
+kbd{font:11px var(--mono);color:var(--ink);border:1px solid var(--edge);border-bottom-width:2px;border-radius:4px;padding:0 5px;margin-right:2px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--edge);border-radius:8px;padding:2px;gap:2px}
 .seg button{background:transparent;color:var(--dim);padding:6px 0;border-radius:6px}
 .seg button[aria-checked="true"]{background:rgba(236,231,223,.12);color:var(--ink)}
@@ -79,6 +81,7 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
   "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js",
   "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
 } }
@@ -96,7 +99,7 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
 <div class="panel" id="ctl">
   <div class="gallery" id="gallery" role="group" aria-label="Sample photos"></div>
   <div class="row">
-    <label class="file" for="pick">Choose photo<input id="pick" type="file" accept="image/*"></label>
+    <label class="file" for="pick" title="A photo, or a .glb 3D model">Open file<input id="pick" type="file" accept="image/*,.glb,.gltf"></label>
     <button id="camBtn" class="ghost" type="button">Turn on camera</button>
     <button id="full" class="ghost" type="button">Full screen</button>
   </div>
@@ -105,8 +108,9 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
     <button type="button" role="radio" data-frame="grid">Tunnel</button>
     <button type="button" role="radio" data-frame="none">None</button>
   </div>
-  <label class="sl">Depth
+  <label class="sl" id="depthRow">Depth
     <input data-p="far" type="range" min="0.6" max="4" step="0.05"></label>
+  <p class="keys" id="navHelp" hidden><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Q</kbd><kbd>E</kbd> down / up · <kbd>Shift</kbd> faster · drag to turn · <kbd>R</kbd> reset</p>
   <label class="sl" id="screenRow" hidden>Screen size (inches) <output></output>
     <input data-p="screenIn" type="range" min="10" max="40" step="0.5"></label>
   <details class="sliders"><summary>Advanced</summary>
@@ -131,7 +135,7 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
     <p class="note">Check the distance in the status line with a tape measure; if it is off, adjust the webcam FOV. Most accurate in full screen.</p>
     <div class="row"><button id="reset" class="ghost" type="button">Reset settings</button></div>
   </details>
-  <p id="hint">Without the camera, look around with your mouse. You can also drop a photo onto the page.</p>
+  <p id="hint">Without the camera, look around with your mouse. Drop a photo or a .glb 3D model onto the page.</p>
 </div>
 
 <figure id="camBox" hidden>
@@ -139,7 +143,7 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
   <span class="badge" title="Face tracking runs in your browser. The video is never uploaded.">On-device</span>
   <figcaption id="camMsg" aria-live="polite">Looking for you…</figcaption>
 </figure>
-<div id="drop" hidden>Drop your photo</div>
+<div id="drop" hidden>Drop a photo or a .glb model</div>
 <div class="panel" id="loader" role="status" aria-live="polite" hidden>
   <div class="ld-head"><span id="ldTitle">Loading…</span><span id="ldPct"></span></div>
   <div class="ld-bar"><i id="ldFill"></i></div>
@@ -341,7 +345,7 @@ function updateCamera(){
   sill.scale.set(sa, 1, wallDepth);
   sill.material.uniforms.uGrid.value = params.frame === 'grid' ? 1 : 0;
   sill.material.uniforms.uSize.value.set(sa, 1, wallDepth);
-  const halfW = sa / 2, halfH = 0.5, n = 0.05, f = 50;
+  const halfW = sa / 2, halfH = 0.5, n = 0.05, f = mode === 'model' ? 5000 : 50;   // walk-through models are big
   const { x: ex, y: ey, z: ez } = eye;
   const l = (-halfW - ex) * n / ez, r = (halfW - ex) * n / ez;
   const b = (-halfH - ey) * n / ez, t = (halfH - ey) * n / ez;
@@ -384,6 +388,8 @@ function showLoader(title, pct = null, note = ''){
   if (pct != null) $('ldFill').style.setProperty('--p', pct);
 }
 const hideLoader = () => { $('loader').hidden = true; };
+// one frame so the card shows up; capped, because background tabs produce no frames at all
+const nextPaint = () => new Promise(r => { requestAnimationFrame(r); setTimeout(r, 50); });
 
 let depthPipe = null, depthLoading = null, device = 'wasm';
 async function getDepth(){
@@ -425,6 +431,7 @@ async function loadPhoto(src, label){
     cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
 
     buildMesh(cw / ch);
+    setMode('photo');
     setPhotoTextures(cv);
     uniforms.uDepth.value?.dispose(); uniforms.uDepth.value = fallbackDepth(128, Math.round(128 * ch / cw));
     say(`${label} · estimating depth…`);
@@ -433,7 +440,7 @@ async function loadPhoto(src, label){
       const pipe = await getDepth();
       const { RawImage } = await import('@huggingface/transformers');
       showLoader('Estimating depth…', null, label);
-      await new Promise(requestAnimationFrame);   // let the card paint before inference takes over
+      await nextPaint();   // let the card paint before inference takes over
       const t0 = performance.now();
       const out = await pipe(RawImage.fromCanvas(cv));
       const dimg = out.depth;
@@ -446,13 +453,29 @@ async function loadPhoto(src, label){
     }
   } catch (e){
     say(e.message);
-  } finally { busy = false; hideLoader(); }
+  } finally { busy = false; hideLoader(); openQueued(); }
 }
 
-$('pick').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadPhoto(URL.createObjectURL(f), f.name); });
+// a photo goes through the depth pipeline, a .glb / .gltf opens as a 3D model
+const isModelFile = f => /\.(glb|gltf)$/i.test(f.name);
+// above this a model's textures can take gigabytes of GPU memory and crash the tab on modest machines
+const MAX_MODEL_MB = 100;
+let queued = null;   // a file dropped while the previous one is still loading opens right after it
+function openQueued(){ const q = queued; queued = null; if (q) openFile(q); }
+function openFile(f){
+  if (!f) return;
+  if (isModelFile(f) && f.size > MAX_MODEL_MB * 1e6){
+    say(`${f.name} is ${Math.round(f.size / 1e6)} MB. Models up to ${MAX_MODEL_MB} MB are supported; try a lighter or compressed version.`);
+    return;
+  }
+  if (busy){ queued = f; return; }
+  if (isModelFile(f)) loadModel(f);
+  else if (f.type.startsWith('image/')) loadPhoto(URL.createObjectURL(f), f.name);
+}
+$('pick').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
 addEventListener('dragover', e => { e.preventDefault(); $('drop').hidden = false; });
 addEventListener('dragleave', e => { if (e.target === document.documentElement || !e.relatedTarget) $('drop').hidden = true; });
-addEventListener('drop', e => { e.preventDefault(); $('drop').hidden = true; const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/')); if (f) loadPhoto(URL.createObjectURL(f), f.name); });
+addEventListener('drop', e => { e.preventDefault(); $('drop').hidden = true; openFile([...e.dataTransfer.files].find(f => isModelFile(f) || f.type.startsWith('image/'))); });
 
 // sliders
 const sliders = [...document.querySelectorAll('input[data-p]')];
@@ -639,8 +662,156 @@ function trackFace(now){
   }
 }
 
+// ---------------- 3D models (.glb) ----------------
+// A model lives in `world`, whose transform is the inverse of a "navigator" pose: the keyboard moves
+// the window through the model while the off-axis camera keeps following your eyes. Small things are
+// framed as an object just behind the glass (slowly turning until you touch them); anything room-sized
+// or bigger is shown at life size, 1 m in the model = 1 m behind your screen, so you can walk through it.
+let mode = 'photo';
+const world = new THREE.Group(); world.matrixAutoUpdate = false; world.visible = false; scene.add(world);
+const lights = new THREE.Group(); lights.visible = false; scene.add(lights);
+lights.add(new THREE.HemisphereLight(0xffffff, 0x2a3a33, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(1, 2, 3); lights.add(sun);
+let model = null, mixer = null, isWorld = false, spin = false, envMap = null, gltfLoader = null;
+const nav = { pos: new THREE.Vector3(), yaw: 0, unit: 1, home: new THREE.Vector3() };
+const navMatrix = new THREE.Matrix4(), navQuat = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0), ONE = new THREE.Vector3(1, 1, 1);
+
+function setMode(m){
+  const wasModel = mode === 'model';
+  mode = m;
+  const photo = m === 'photo';
+  if (mesh) mesh.visible = photo;
+  backdrop.visible = photo;
+  world.visible = lights.visible = !photo;
+  scene.environment = photo ? null : envMap;
+  // the photo shader writes the photo's own sRGB values; PBR models need proper output conversion
+  renderer.outputColorSpace = photo ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
+  renderer.toneMapping = photo ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  $('depthRow').hidden = !photo; $('navHelp').hidden = photo;
+  if (photo){
+    disposeModel();
+    if (wasModel) $('hint').textContent = tracking ? 'Move your head side to side, up and down, closer and further. Closing one eye makes it even stronger.'
+                                     : 'Without the camera, look around with your mouse. Drop a photo or a .glb 3D model onto the page.';
+  } else sill.material.uniforms.uTint.value.setRGB(0.45, 0.47, 0.46);
+}
+function disposeModel(){
+  if (!model) return;
+  world.remove(model);
+  model.traverse(o => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])){
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+      m.dispose();
+    }
+  });
+  model = mixer = null; keys.clear();
+}
+async function getGLTFLoader(){
+  if (gltfLoader) return gltfLoader;
+  const base = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/';
+  const [{ GLTFLoader }, { DRACOLoader }, { KTX2Loader }, { MeshoptDecoder }, { RoomEnvironment }] = await Promise.all([
+    import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/DRACOLoader.js'),
+    import('three/addons/loaders/KTX2Loader.js'), import('three/addons/libs/meshopt_decoder.module.js'),
+    import('three/addons/environments/RoomEnvironment.js'),
+  ]);
+  // compressed models (Draco meshes, KTX2 textures, meshopt) are common in .glb exports
+  gltfLoader = new GLTFLoader()
+    .setDRACOLoader(new DRACOLoader().setDecoderPath(base + 'libs/draco/gltf/'))
+    .setKTX2Loader(new KTX2Loader().setTranscoderPath(base + 'libs/basis/').detectSupport(renderer))
+    .setMeshoptDecoder(MeshoptDecoder);
+  envMap = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  return gltfLoader;
+}
+
+async function loadModel(file){
+  if (busy) return; busy = true;
+  try{
+    showLoader('Opening 3D model…', null, `${file.name} · ${(file.size / 1e6).toFixed(1)} MB · stays on your device`);
+    await nextPaint();
+    const loader = await getGLTFLoader();
+    const gltf = await loader.parseAsync(await file.arrayBuffer(), '');
+    disposeModel();   // replacing a previous model
+    setMode('model');
+    const root = gltf.scene;
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    isWorld = maxDim > 4;   // metres: room-sized or bigger is a place to walk through
+    model = new THREE.Group(); model.add(root); world.add(model);
+    if (isWorld){
+      nav.unit = 1000 / screenGeom().vhMm;   // screen-heights per metre: true life size
+      root.scale.setScalar(nav.unit);
+      // seen from inside, one-sided walls exported with outward normals would vanish: draw both sides
+      root.traverse(o => { for (const m of [].concat(o.material || [])) m.side = THREE.DoubleSide; });
+      // start near the back edge looking in, so the whole place is in view, with the window at eye
+      // height (1.6 m above the floor, or mid-height if it's low)
+      nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
+      spin = false;
+    } else {
+      const k = 0.75 / maxDim;   // fill most of the window without touching the frame
+      root.scale.setScalar(k); root.position.copy(c).multiplyScalar(-k);
+      nav.unit = 1;
+      nav.home.set(0, 0, size.z * k / 2);   // its front just touches the glass
+      spin = true;
+    }
+    resetNav();
+    if (gltf.animations.length){ mixer = new THREE.AnimationMixer(root); for (const a of gltf.animations) mixer.clipAction(a).play(); }
+    for (const b of $('gallery').children) b.setAttribute('aria-pressed', false);
+    say(`${file.name} · ${isWorld ? 'life size, walk through it' : '3D object'}`);
+    $('hint').textContent = isWorld
+      ? 'You are inside the model at life size. Walk with W A S D, turn with ← → or by dragging.'
+      : 'Drag to turn the object, or move with W A S D. Press R to reset.';
+  } catch (e){
+    console.error(e);
+    say(`Could not open this model: ${e.message}. Use a single .glb file (a .gltf with separate files will not load).`);
+  } finally { busy = false; hideLoader(); openQueued(); }
+}
+
+function resetNav(){ nav.pos.copy(nav.home); nav.yaw = 0; if (model) model.rotation.y = 0; }
+const keys = new Set();
+const NAV_KEYS = new Set(['w', 'a', 's', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
+const keyName = e => e.key.length === 1 ? e.key.toLowerCase() : e.key;
+addEventListener('keydown', e => {
+  if (mode !== 'model' || e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = keyName(e);
+  if (k === 'r'){ resetNav(); spin = !isWorld; return; }
+  if (NAV_KEYS.has(k)){ keys.add(k); spin = false; e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(keyName(e)));
+addEventListener('blur', () => keys.clear());
+
+function updateNav(dt){
+  if (mode !== 'model' || !model) return;
+  if (spin) model.rotation.y += dt * 0.3;
+  mixer?.update(dt);
+  const speed = (isWorld ? 1.4 * nav.unit : 0.6) * (keys.has('Shift') ? 3 : 1) * dt;   // 1.4 m/s: a walk
+  if (keys.has('ArrowLeft')) nav.yaw += 1.4 * dt;
+  if (keys.has('ArrowRight')) nav.yaw -= 1.4 * dt;
+  const f = (keys.has('w') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('s') || keys.has('ArrowDown') ? 1 : 0);
+  const r = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
+  const u = (keys.has('e') ? 1 : 0) - (keys.has('q') ? 1 : 0);
+  const sin = Math.sin(nav.yaw), cos = Math.cos(nav.yaw);
+  nav.pos.x += (-sin * f + cos * r) * speed;
+  nav.pos.z += (-cos * f - sin * r) * speed;
+  nav.pos.y += u * speed;
+  navMatrix.compose(nav.pos, navQuat.setFromAxisAngle(UP, nav.yaw), ONE).invert();
+  world.matrix.copy(navMatrix); world.matrixWorldNeedsUpdate = true;
+}
+
+// drag on the scene: turn yourself (walk-through) or the object
+let dragX = null;
+$('gl').addEventListener('pointerdown', e => {
+  if (mode !== 'model') return;
+  dragX = e.clientX; spin = false; $('gl').setPointerCapture(e.pointerId);
+});
+addEventListener('pointerup', () => { dragX = null; });
+
 // mouse fallback
 addEventListener('pointermove', e => {
+  if (dragX != null){
+    const dx = e.clientX - dragX; dragX = e.clientX;
+    if (isWorld) nav.yaw += dx * 0.004; else if (model) model.rotation.y += dx * 0.01;
+    return;
+  }
   if (tracking || e.pointerType === 'touch' && e.target !== $('gl')) return;
   const g = params.gain;
   eyeTarget.x = (e.clientX / innerWidth - 0.5) * 0.9 * g;
@@ -664,6 +835,7 @@ function frameLoop(now){
     const dist = eye.distanceTo(eyeTarget);
     eye.lerp(eyeTarget, 1 - Math.exp(-dt * (8 + 60 * dist)));
   }
+  updateNav(dt);
   updateCamera();
   renderer.render(scene, camera);
   requestAnimationFrame(frameLoop);
@@ -697,7 +869,7 @@ showSample(new URLSearchParams(location.search).get('photo'));
 // from the landing page's "Use your own photo": browsers won't open a file picker unprompted, so point at it
 if (location.hash === '#own'){
   $('pick').parentElement.classList.add('nudge');
-  $('hint').textContent = 'Use "Choose photo" to load your own picture, or drop it onto the page.';
+  $('hint').textContent = 'Use "Open file" to load your own photo or a .glb 3D model, or drop it onto the page.';
 }
 
 // a drawn stand-in shown for the first second, before the sample photo arrives

@@ -6,7 +6,7 @@
 
 **[Try it live →](https://YOUR-USERNAME.github.io/deep-window/)** <!-- replace after enabling GitHub Pages -->
 
-- **Your own photos.** Not a prepared 3D scene: any picture you load becomes a window, in a few seconds.
+- **Your own photos.** Not a prepared 3D scene: any picture you load becomes a window, in a few seconds. Got a 3D model instead? Drop a `.glb` and walk through it.
 - **Private by design.** Everything runs in your browser. Your photo and camera feed never leave your computer. No server, no sign-up, no build step.
 - **Physically based head tracking.** Your eye position is measured in centimetres, so the parallax lines up with how a real window would move.
 
@@ -17,6 +17,23 @@
 3. **Screen = glass.** Each frame is rendered with an off-axis (asymmetric frustum) projection: the screen rectangle stays fixed and the view frustum leans toward your eye. The photo sits *behind* the glass and overflows the frame, so the screen edge hides and reveals parts of the scene as you move. An optional grid tunnel gives the eye a perfectly rigid depth reference.
 
 Without a webcam, you can look around with your mouse.
+
+## 3D models (.glb)
+
+Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either.
+
+- **Objects** (anything under about 4 m across) are scaled to sit just behind the glass. Drag to turn them, or let them spin.
+- **Rooms and landscapes** (bigger than that) open at **life size**: one metre in the model is one metre behind your screen. Walk through them with the keyboard:
+
+| Key | Action |
+|---|---|
+| `W` `A` `S` `D` / `↑` `↓` | Move |
+| `←` `→` or drag | Turn |
+| `Q` / `E` | Down / up |
+| `Shift` | Move faster |
+| `R` | Back to the start |
+
+Draco, meshopt and KTX2 compressed files are supported, and embedded animations play automatically. Files up to **100 MB** are accepted; larger ones are refused, because their textures can take gigabytes of GPU memory. Use a single `.glb` file; a `.gltf` that points to separate texture and `.bin` files can't be loaded from one file. Free models: [Poly Haven](https://polyhaven.com/models) (CC0), [Sketchfab](https://sketchfab.com/features/gltf) (check each model's license).
 
 ## Run it locally
 
@@ -50,7 +67,7 @@ A single photo has no information about what is behind objects. Move your head f
 | [Depth Anything V2 Small](https://huggingface.co/onnx-community/depth-anything-v2-small) | Apache 2.0 |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 0.10 | Apache 2.0 |
 
-Libraries and models load from public CDNs at pinned versions. Sample photos are CC0 from Wikimedia Commons, see [samples/CREDITS.md](samples/CREDITS.md).
+3D models load through three.js's GLTFLoader, with the Draco (Apache 2.0), Basis Universal (Apache 2.0) and meshoptimizer (MIT) decoders that ship with three.js. Libraries and models load from public CDNs at pinned versions. Sample photos are CC0 from Wikimedia Commons, see [samples/CREDITS.md](samples/CREDITS.md).
 
 Inspired by Johnny Chung Lee's [Wii Remote head tracking](https://www.youtube.com/watch?v=Jd3-eiid-Uw) (2007) and the World Labs [off-axis projection demo](https://www.worldlabs.ai/labs/showcase/off-axis).
 
