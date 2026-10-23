@@ -70,7 +70,7 @@ A single photo has no information about what is behind objects. Move your head f
 
 | | License |
 |---|---|
-| [three.js](https://threejs.org/) 0.170 | MIT |
+| [three.js](https://threejs.org/) 0.186 | MIT |
 | [Transformers.js](https://github.com/huggingface/transformers.js) 3.7 | Apache 2.0 |
 | [Depth Anything V2 Small](https://huggingface.co/onnx-community/depth-anything-v2-small) | Apache 2.0 |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 0.10 | Apache 2.0 |

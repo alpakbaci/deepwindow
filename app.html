@@ -10,8 +10,9 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.3.1/dist/spark.module.js",
   "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js",
   "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
 } }
@@ -29,7 +30,7 @@
 <div class="panel" id="ctl">
   <div class="gallery" id="gallery" role="group" aria-label="Sample photos"></div>
   <div class="row">
-    <label class="file" for="pick" title="A photo, or a .glb 3D model">Open file<input id="pick" type="file" accept="image/*,.glb,.gltf"></label>
+    <label class="file" for="pick" title="A photo, a .glb 3D model or a .spz splat">Open file<input id="pick" type="file" accept="image/*,.glb,.gltf,.spz"></label>
     <button id="camBtn" class="ghost" type="button">Turn on camera</button>
     <button id="full" class="ghost" type="button">Full screen</button>
   </div>
@@ -45,6 +46,7 @@
     <button type="button" role="radio" data-kind="diorama" title="Fills the screen edge to edge, like a box behind the glass">Diorama</button>
     <button type="button" role="radio" data-kind="world" title="Life size: walk through it with the keyboard">Walk-through</button>
   </div>
+  <button type="button" class="ghost" id="flipBtn" hidden title="Splats are often saved upside down">Flip upside down</button>
   <p class="keys" id="navHelp" hidden><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Q</kbd><kbd>E</kbd> down / up · <kbd>Shift</kbd> faster · drag to turn · <kbd>R</kbd> reset</p>
   <label class="sl" id="screenRow" hidden>Screen size (inches) <output></output>
     <input data-p="screenIn" type="range" min="10" max="40" step="0.5"></label>
@@ -70,7 +72,7 @@
     <p class="note">Check the distance in the status line with a tape measure; if it is off, adjust the webcam FOV. Most accurate in full screen.</p>
     <div class="row"><button id="reset" class="ghost" type="button">Reset settings</button></div>
   </details>
-  <p id="hint">Without the camera, look around with your mouse. Drop a photo or a .glb 3D model onto the page.</p>
+  <p id="hint">Without the camera, look around with your mouse. Drop a photo, a .glb 3D model or a .spz splat onto the page.</p>
 </div>
 
 <figure id="camBox" hidden>
@@ -78,7 +80,7 @@
   <span class="badge" title="Face tracking runs in your browser. The video is never uploaded.">On-device</span>
   <figcaption id="camMsg" aria-live="polite">Looking for you…</figcaption>
 </figure>
-<div id="drop" hidden>Drop a photo or a .glb model</div>
+<div id="drop" hidden>Drop a photo, a .glb model or a .spz splat</div>
 <div class="panel" id="loader" role="status" aria-live="polite" hidden>
   <div class="ld-head"><span id="ldTitle">Loading…</span><span id="ldPct"></span></div>
   <div class="ld-bar"><i id="ldFill"></i></div>

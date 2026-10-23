@@ -303,26 +303,35 @@ async function loadPhoto(src, label){
   } finally { busy = false; hideLoader(); openQueued(); }
 }
 
-// a photo goes through the depth pipeline, a .glb / .gltf opens as a 3D model
+// a photo goes through the depth pipeline, a .glb / .gltf opens as a 3D model, a .spz as a splat
 const isModelFile = f => /\.(glb|gltf)$/i.test(f.name);
+const isSplatFile = f => /\.spz$/i.test(f.name);
+// other splat formats are refused on purpose: .spz is ~10x smaller than .ply, and most .ply scenes
+// are far over the size limit anyway
+const isOtherSplat = f => /\.(ply|splat|ksplat|sog)$/i.test(f.name);
 // above this a model's textures can take gigabytes of GPU memory and crash the tab on modest machines
 const MAX_MODEL_MB = 100;
 let queued = null;   // a file dropped while the previous one is still loading opens right after it
 function openQueued(){ const q = queued; queued = null; if (q) openFile(q); }
 function openFile(f){
   if (!f) return;
-  if (isModelFile(f) && f.size > MAX_MODEL_MB * 1e6){
-    say(`${f.name} is ${Math.round(f.size / 1e6)} MB. Models up to ${MAX_MODEL_MB} MB are supported; try a lighter or compressed version.`);
+  if (isOtherSplat(f)){
+    say(`${f.name}: only .spz splats are supported. Convert it to .spz first; it is about 10× smaller than .ply.`);
+    return;
+  }
+  if ((isModelFile(f) || isSplatFile(f)) && f.size > MAX_MODEL_MB * 1e6){
+    say(`${f.name} is ${Math.round(f.size / 1e6)} MB. Files up to ${MAX_MODEL_MB} MB are supported; try a lighter or compressed version.`);
     return;
   }
   if (busy){ queued = f; return; }
   if (isModelFile(f)) loadModel(f);
+  else if (isSplatFile(f)) loadSplat(f);
   else if (f.type.startsWith('image/')) loadPhoto(URL.createObjectURL(f), f.name);
 }
 $('pick').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
 addEventListener('dragover', e => { e.preventDefault(); $('drop').hidden = false; });
 addEventListener('dragleave', e => { if (e.target === document.documentElement || !e.relatedTarget) $('drop').hidden = true; });
-addEventListener('drop', e => { e.preventDefault(); $('drop').hidden = true; openFile([...e.dataTransfer.files].find(f => isModelFile(f) || f.type.startsWith('image/'))); });
+addEventListener('drop', e => { e.preventDefault(); $('drop').hidden = true; openFile([...e.dataTransfer.files].find(f => isModelFile(f) || isSplatFile(f) || isOtherSplat(f) || f.type.startsWith('image/'))); });
 
 // sliders
 const sliders = [...document.querySelectorAll('input[data-p]')];
@@ -539,12 +548,15 @@ function setMode(m){
   if (photo){
     disposeModel();
     if (wasModel) $('hint').textContent = tracking ? 'Move your head side to side, up and down, closer and further. Closing one eye makes it even stronger.'
-                                     : 'Without the camera, look around with your mouse. Drop a photo or a .glb 3D model onto the page.';
+                                     : 'Without the camera, look around with your mouse. Drop a photo, a .glb 3D model or a .spz splat onto the page.';
   } else sill.material.uniforms.uTint.value.setRGB(0.45, 0.47, 0.46);
 }
 function disposeModel(){
   if (!model) return;
   world.remove(model);
+  $('flipBtn').hidden = true;
+  // a splat cleans up after itself; its geometry is Spark's own and must not be disposed here
+  if (modelInfo?.splat){ modelInfo.splat.dispose(); model = mixer = modelInfo = null; keys.clear(); return; }
   model.traverse(o => {
     o.geometry?.dispose();
     for (const m of [].concat(o.material || [])){
@@ -556,7 +568,7 @@ function disposeModel(){
 }
 async function getGLTFLoader(){
   if (gltfLoader) return gltfLoader;
-  const base = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/';
+  const base = 'https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/';
   const [{ GLTFLoader }, { DRACOLoader }, { KTX2Loader }, { MeshoptDecoder }, { RoomEnvironment }] = await Promise.all([
     import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/DRACOLoader.js'),
     import('three/addons/loaders/KTX2Loader.js'), import('three/addons/libs/meshopt_decoder.module.js'),
@@ -588,7 +600,7 @@ async function loadModel(file, opts = {}){
     const sides = new Map();   // each material's own side, restored when going back to Object
     root.traverse(o => { for (const m of [].concat(o.material || [])) sides.set(m, m.side); });
     modelInfo = { root, box, sides, size: box.getSize(new THREE.Vector3()), c: box.getCenter(new THREE.Vector3()),
-                  label: opts.label || file.name, credit: opts.credit || '' };
+                  home: opts.home, label: opts.label || file.name, credit: opts.credit || '' };
     model = new THREE.Group(); model.add(root); world.add(model);
     if (gltf.animations.length){ mixer = new THREE.AnimationMixer(root); for (const a of gltf.animations) mixer.clipAction(a).play(); }
     for (const b of $('gallery').children) b.setAttribute('aria-pressed', b.dataset.id === opts.id);
@@ -600,6 +612,54 @@ async function loadModel(file, opts = {}){
     say(`Could not open this model: ${e.message}. Use a single .glb file (a .gltf with separate files will not load).`);
   } finally { busy = false; hideLoader(); openQueued(); }
 }
+
+// ---------------- splats (.spz), drawn by Spark ----------------
+// A splat goes through the same model path: same world group, placements and keyboard. Spark's
+// SparkRenderer joins the scene once, on the first splat, so photos and .glb never load it.
+let spark = null;
+async function getSpark(){
+  if (spark) return spark;
+  const mod = await import('@sparkjsdev/spark');
+  scene.add(new mod.SparkRenderer({ renderer }));
+  return spark = mod;
+}
+async function loadSplat(file, opts = {}){
+  if (busy) return; busy = true;
+  try{
+    showLoader('Opening splat…', null, `${file.name} · ${(file.size / 1e6).toFixed(1)} MB · stays on your device`);
+    await nextPaint();
+    const { SplatMesh } = await getSpark();
+    const splat = new SplatMesh({ fileBytes: await file.arrayBuffer(), fileName: file.name });
+    await splat.initialized;
+    disposeModel();
+    setMode('model');
+    const root = new THREE.Group(); root.add(splat);
+    modelInfo = { root, splat, flipped: opts.flipped ?? true, sides: new Map(), home: opts.home,
+                  label: opts.label || file.name, credit: opts.credit || '' };
+    measureSplat();
+    model = new THREE.Group(); model.add(root); world.add(model);
+    $('flipBtn').hidden = false;
+    for (const b of $('gallery').children) b.setAttribute('aria-pressed', b.dataset.id === opts.id);
+    placeModel(opts.kind ?? (Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4 ? 'world' : 'object'));
+  } catch (e){
+    console.error(e);
+    say(`Could not open this splat: ${e.message}`);
+  } finally { busy = false; hideLoader(); openQueued(); }
+}
+// most .spz files are stored upside down (camera-style axes, y down), which is why Spark's own
+// examples turn them 180° about X; flipped is the default and the Flip button undoes it
+function measureSplat(){
+  const { splat, flipped } = modelInfo;
+  splat.quaternion.set(flipped ? 1 : 0, 0, 0, flipped ? 0 : 1);
+  splat.updateMatrix();
+  const box = splat.getBoundingBox().clone().applyMatrix4(splat.matrix);
+  modelInfo.box = box; modelInfo.size = box.getSize(new THREE.Vector3()); modelInfo.c = box.getCenter(new THREE.Vector3());
+}
+$('flipBtn').addEventListener('click', () => {
+  if (!modelInfo?.splat) return;
+  modelInfo.flipped = !modelInfo.flipped;
+  measureSplat(); placeModel(placement);
+});
 
 // kind: 'object'  — fits inside the window, front at the glass, slowly turning
 //       'diorama' — the model's front face fills the screen edge to edge, so a box-shaped scene's
@@ -621,9 +681,10 @@ function placeModel(kind){
   if (isWorld){
     nav.unit = 1000 / screenGeom().vhMm;   // screen-heights per metre: true life size
     root.scale.setScalar(nav.unit); root.position.set(0, 0, 0);
-    // start near the back edge looking in, so the whole place is in view, with the window at eye
-    // height (1.6 m above the floor, or mid-height if it's low)
-    nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
+    // a sample can say where to stand; otherwise start near the back edge looking in, so the whole
+    // place is in view, with the window at eye height (1.6 m above the floor, or mid-height if it's low)
+    if (modelInfo.home) nav.home.fromArray(modelInfo.home).multiplyScalar(nav.unit);
+    else nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
     spin = false;
   } else {
     // object: fit most of the window without touching the frame; diorama: cover the whole screen
@@ -744,19 +805,22 @@ for (const [id, name] of SAMPLES){
   $('gallery').append(b);
 }
 // sample 3D models: [id, name, credit, placement]; see samples/CREDITS.md
+// home: where a walk-through starts, in the scene's own metres. For a generated splat the origin is
+// where the source picture was taken from, so starting near it frames the scene the way it was made.
 const SAMPLE_MODELS = [
-  ['littlest-tokyo', 'Littlest Tokyo', 'model by Glen Fox, CC BY', 'object'],
+  { id: 'littlest-tokyo', name: 'Littlest Tokyo', file: 'littlest-tokyo.glb', credit: 'model by Glen Fox, CC BY', kind: 'object' },
 ];
 async function showSampleModel(id){
-  const [, name, credit, kind] = SAMPLE_MODELS.find(m => m[0] === id);
-  showLoader('Downloading 3D model…', null, name);
+  const { name, file, credit, kind, home } = SAMPLE_MODELS.find(m => m.id === id);
+  showLoader('Downloading 3D scene…', null, name);
   try{
-    const blob = await (await fetch(`samples/models/${id}.glb`)).blob();
+    const blob = await (await fetch(`samples/models/${file}`)).blob();
     while (busy) await new Promise(r => setTimeout(r, 100));   // a photo still estimating depth
-    await loadModel(new File([blob], `${id}.glb`), { id, label: name, credit, kind });
-  } catch (e){ hideLoader(); say(`Could not load the sample model: ${e.message}`); }
+    const opts = { id, label: name, credit, kind, home };
+    await (isSplatFile({ name: file }) ? loadSplat : loadModel)(new File([blob], file), opts);
+  } catch (e){ hideLoader(); say(`Could not load the sample: ${e.message}`); }
 }
-for (const [id, name] of SAMPLE_MODELS){
+for (const { id, name } of SAMPLE_MODELS){
   const b = document.createElement('button');
   b.type = 'button'; b.dataset.id = id; b.className = 'model'; b.title = `${name} (3D model)`; b.setAttribute('aria-label', `${name}, 3D model`);
   b.innerHTML = `<img src="samples/thumbs/${id}.jpg" alt="">`;
@@ -765,7 +829,7 @@ for (const [id, name] of SAMPLE_MODELS){
 }
 $('pick').addEventListener('change', () => { for (const b of $('gallery').children) b.setAttribute('aria-pressed', false); });
 const startParams = new URLSearchParams(location.search);
-if (SAMPLE_MODELS.some(m => m[0] === startParams.get('model'))){
+if (SAMPLE_MODELS.some(m => m.id === startParams.get('model'))){
   showSampleModel(startParams.get('model'));   // a model needs no depth model: skip the photo pipeline entirely
 } else {
   say('Loading sample…');
@@ -774,7 +838,7 @@ if (SAMPLE_MODELS.some(m => m[0] === startParams.get('model'))){
 // from the landing page's "Use your own photo": browsers won't open a file picker unprompted, so point at it
 if (location.hash === '#own'){
   $('pick').parentElement.classList.add('nudge');
-  $('hint').textContent = 'Use "Open file" to load your own photo or a .glb 3D model, or drop it onto the page.';
+  $('hint').textContent = 'Use "Open file" to load your own photo, a .glb 3D model or a .spz splat, or drop it onto the page.';
 }
 
 // a drawn stand-in shown for the first second, before the sample photo arrives
