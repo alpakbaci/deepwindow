@@ -1,4 +1,14 @@
-# Sample photo credits
+# Sample credits
+
+## 3D model
+
+| File | Author | License | Source |
+|---|---|---|---|
+| `models/littlest-tokyo.glb` | Glen Fox | Creative Commons Attribution | [Littlest Tokyo on ArtStation](https://artstation.com/artwork/1AGwX), redistributed as in the [three.js examples](https://threejs.org/examples/#webgl_animation_keyframes) |
+
+The model file is used unchanged (Draco compressed, as shipped with three.js r170). `cards/littlest-tokyo.jpg` and `thumbs/littlest-tokyo.jpg` are renders of it made in Deep Window.
+
+## Photos
 
 All sample photos come from Wikimedia Commons and are released under **CC0** (public domain dedication): no attribution is required and they may be modified and redistributed. They are listed here anyway, with thanks to the photographers. Images were resized to 1600 px on the long side and recompressed; the files in `thumbs/` are gallery previews.
 

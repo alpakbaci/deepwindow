@@ -20,7 +20,9 @@ Without a webcam, you can look around with your mouse.
 
 ## 3D models (.glb)
 
-Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either.
+Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either. To see it right away, open the **Littlest Tokyo** sample (an animated diorama by Glen Fox, CC BY) from the gallery, or go straight to `app.html?model=littlest-tokyo`.
+
+Size is used to guess what a model is, assuming it is in metres. If a model opens the wrong way (a tiny diorama exported in centimetres can look like a giant city), switch between **Object** and **Walk-through** in the panel.
 
 - **Objects** (anything under about 4 m across) are scaled to sit just behind the glass. Drag to turn them, or let them spin.
 - **Rooms and landscapes** (bigger than that) open at **life size**: one metre in the model is one metre behind your screen. Walk through them with the keyboard:
@@ -67,7 +69,7 @@ A single photo has no information about what is behind objects. Move your head f
 | [Depth Anything V2 Small](https://huggingface.co/onnx-community/depth-anything-v2-small) | Apache 2.0 |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 0.10 | Apache 2.0 |
 
-3D models load through three.js's GLTFLoader, with the Draco (Apache 2.0), Basis Universal (Apache 2.0) and meshoptimizer (MIT) decoders that ship with three.js. Libraries and models load from public CDNs at pinned versions. Sample photos are CC0 from Wikimedia Commons, see [samples/CREDITS.md](samples/CREDITS.md).
+3D models load through three.js's GLTFLoader, with the Draco (Apache 2.0), Basis Universal (Apache 2.0) and meshoptimizer (MIT) decoders that ship with three.js. Libraries and models load from public CDNs at pinned versions. Sample photos are CC0 from Wikimedia Commons; the sample model is Littlest Tokyo by Glen Fox (CC BY). See [samples/CREDITS.md](samples/CREDITS.md).
 
 Inspired by Johnny Chung Lee's [Wii Remote head tracking](https://www.youtube.com/watch?v=Jd3-eiid-Uw) (2007) and the World Labs [off-axis projection demo](https://www.worldlabs.ai/labs/showcase/off-axis).
 

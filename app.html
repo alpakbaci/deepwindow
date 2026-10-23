@@ -43,6 +43,7 @@ button:focus-visible,.file:focus-within,input:focus-visible{outline:2px solid va
 .keys{font-size:12px;color:var(--dim);margin:0;line-height:2}
 kbd{font:11px var(--mono);color:var(--ink);border:1px solid var(--edge);border-bottom-width:2px;border-radius:4px;padding:0 5px;margin-right:2px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--edge);border-radius:8px;padding:2px;gap:2px}
+.seg.two{grid-template-columns:repeat(2,1fr)}
 .seg button{background:transparent;color:var(--dim);padding:6px 0;border-radius:6px}
 .seg button[aria-checked="true"]{background:rgba(236,231,223,.12);color:var(--ink)}
 label.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;color:var(--dim)}
@@ -61,7 +62,9 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
 #top h1 a{color:inherit;text-decoration:none}
 .file.nudge{animation:nudge 1.4s ease-in-out 3;box-shadow:0 0 0 2px var(--accent)}
 @keyframes nudge{50%{box-shadow:0 0 0 6px rgba(127,209,195,.25)}}
-.gallery{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.gallery{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.gallery button{position:relative}
+.gallery button.model::after{content:"3D";position:absolute;right:2px;bottom:2px;font:600 8px var(--mono);color:var(--bg);background:var(--accent);border-radius:3px;padding:1px 3px}
 .gallery button{padding:0;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:none;aspect-ratio:4/3;opacity:.7}
 .gallery button:hover,.gallery button[aria-pressed="true"]{opacity:1;border-color:var(--accent)}
 .gallery img{width:100%;height:100%;object-fit:cover;display:block}
@@ -110,6 +113,10 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
   </div>
   <label class="sl" id="depthRow">Depth
     <input data-p="far" type="range" min="0.6" max="4" step="0.05"></label>
+  <div class="seg two" id="viewAs" role="radiogroup" aria-label="Show the model as" hidden>
+    <button type="button" role="radio" data-world="0">Object</button>
+    <button type="button" role="radio" data-world="1">Walk-through</button>
+  </div>
   <p class="keys" id="navHelp" hidden><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Q</kbd><kbd>E</kbd> down / up · <kbd>Shift</kbd> faster · drag to turn · <kbd>R</kbd> reset</p>
   <label class="sl" id="screenRow" hidden>Screen size (inches) <output></output>
     <input data-p="screenIn" type="range" min="10" max="40" step="0.5"></label>
@@ -687,7 +694,7 @@ function setMode(m){
   // the photo shader writes the photo's own sRGB values; PBR models need proper output conversion
   renderer.outputColorSpace = photo ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
   renderer.toneMapping = photo ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
-  $('depthRow').hidden = !photo; $('navHelp').hidden = photo;
+  $('depthRow').hidden = !photo; $('navHelp').hidden = $('viewAs').hidden = photo;
   if (photo){
     disposeModel();
     if (wasModel) $('hint').textContent = tracking ? 'Move your head side to side, up and down, closer and further. Closing one eye makes it even stronger.'
@@ -704,7 +711,7 @@ function disposeModel(){
       m.dispose();
     }
   });
-  model = mixer = null; keys.clear();
+  model = mixer = modelInfo = null; keys.clear();
 }
 async function getGLTFLoader(){
   if (gltfLoader) return gltfLoader;
@@ -723,7 +730,10 @@ async function getGLTFLoader(){
   return gltfLoader;
 }
 
-async function loadModel(file){
+// opts.asWorld: force object (false) or walk-through (true) instead of guessing from the size;
+// opts.label / opts.credit: shown in the status line (sample models need their attribution there)
+let modelInfo = null;   // { root, box, size, c, label } of the loaded model, so placement can be switched
+async function loadModel(file, opts = {}){
   if (busy) return; busy = true;
   try{
     showLoader('Opening 3D model…', null, `${file.name} · ${(file.size / 1e6).toFixed(1)} MB · stays on your device`);
@@ -733,38 +743,52 @@ async function loadModel(file){
     disposeModel();   // replacing a previous model
     setMode('model');
     const root = gltf.scene;
-    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    isWorld = maxDim > 4;   // metres: room-sized or bigger is a place to walk through
+    const box = new THREE.Box3().setFromObject(root);
+    const sides = new Map();   // each material's own side, restored when going back to Object
+    root.traverse(o => { for (const m of [].concat(o.material || [])) sides.set(m, m.side); });
+    modelInfo = { root, box, sides, size: box.getSize(new THREE.Vector3()), c: box.getCenter(new THREE.Vector3()),
+                  label: opts.label || file.name, credit: opts.credit || '' };
     model = new THREE.Group(); model.add(root); world.add(model);
-    if (isWorld){
-      nav.unit = 1000 / screenGeom().vhMm;   // screen-heights per metre: true life size
-      root.scale.setScalar(nav.unit);
-      // seen from inside, one-sided walls exported with outward normals would vanish: draw both sides
-      root.traverse(o => { for (const m of [].concat(o.material || [])) m.side = THREE.DoubleSide; });
-      // start near the back edge looking in, so the whole place is in view, with the window at eye
-      // height (1.6 m above the floor, or mid-height if it's low)
-      nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
-      spin = false;
-    } else {
-      const k = 0.75 / maxDim;   // fill most of the window without touching the frame
-      root.scale.setScalar(k); root.position.copy(c).multiplyScalar(-k);
-      nav.unit = 1;
-      nav.home.set(0, 0, size.z * k / 2);   // its front just touches the glass
-      spin = true;
-    }
-    resetNav();
     if (gltf.animations.length){ mixer = new THREE.AnimationMixer(root); for (const a of gltf.animations) mixer.clipAction(a).play(); }
-    for (const b of $('gallery').children) b.setAttribute('aria-pressed', false);
-    say(`${file.name} · ${isWorld ? 'life size, walk through it' : '3D object'}`);
-    $('hint').textContent = isWorld
-      ? 'You are inside the model at life size. Walk with W A S D, turn with ← → or by dragging.'
-      : 'Drag to turn the object, or move with W A S D. Press R to reset.';
+    for (const b of $('gallery').children) b.setAttribute('aria-pressed', b.dataset.id === opts.id);
+    // a model is normally in metres: room-sized or bigger is a place to walk through. Files in other
+    // units fool this guess, which is what the Object / Walk-through switch is for.
+    placeModel(opts.asWorld ?? Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4);
   } catch (e){
     console.error(e);
     say(`Could not open this model: ${e.message}. Use a single .glb file (a .gltf with separate files will not load).`);
   } finally { busy = false; hideLoader(); openQueued(); }
 }
+
+function placeModel(asWorld){
+  if (!modelInfo) return;
+  const { root, box, sides, size, c } = modelInfo;
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  isWorld = asWorld;
+  // seen from inside, one-sided walls exported with outward normals would vanish: draw both sides
+  for (const [m, side] of sides){ m.side = isWorld ? THREE.DoubleSide : side; m.needsUpdate = true; }
+  if (isWorld){
+    nav.unit = 1000 / screenGeom().vhMm;   // screen-heights per metre: true life size
+    root.scale.setScalar(nav.unit); root.position.set(0, 0, 0);
+    // start near the back edge looking in, so the whole place is in view, with the window at eye
+    // height (1.6 m above the floor, or mid-height if it's low)
+    nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
+    spin = false;
+  } else {
+    const k = 0.75 / maxDim;   // fill most of the window without touching the frame
+    root.scale.setScalar(k); root.position.copy(c).multiplyScalar(-k);
+    nav.unit = 1;
+    nav.home.set(0, 0, size.z * k / 2);   // its front just touches the glass
+    spin = true;
+  }
+  resetNav();
+  for (const b of $('viewAs').children) b.setAttribute('aria-checked', (b.dataset.world === '1') === isWorld);
+  say(`${modelInfo.label} · ${isWorld ? 'life size, walk through it' : '3D object'}${modelInfo.credit ? ' · ' + modelInfo.credit : ''}`);
+  $('hint').textContent = isWorld
+    ? 'You are inside the model at life size. Walk with W A S D, turn with ← → or by dragging.'
+    : 'Drag to turn the object, or move with W A S D. Press R to reset.';
+}
+for (const b of $('viewAs').children) b.addEventListener('click', () => placeModel(b.dataset.world === '1'));
 
 function resetNav(){ nav.pos.copy(nav.home); nav.yaw = 0; if (model) model.rotation.y = 0; }
 const keys = new Set();
@@ -863,9 +887,34 @@ for (const [id, name] of SAMPLES){
   b.addEventListener('click', () => showSample(id));
   $('gallery').append(b);
 }
+// sample 3D models: [id, name, credit, walk-through?]; see samples/CREDITS.md
+const SAMPLE_MODELS = [
+  ['littlest-tokyo', 'Littlest Tokyo', 'model by Glen Fox, CC BY', false],
+];
+async function showSampleModel(id){
+  const [, name, credit, asWorld] = SAMPLE_MODELS.find(m => m[0] === id);
+  showLoader('Downloading 3D model…', null, name);
+  try{
+    const blob = await (await fetch(`samples/models/${id}.glb`)).blob();
+    while (busy) await new Promise(r => setTimeout(r, 100));   // a photo still estimating depth
+    await loadModel(new File([blob], `${id}.glb`), { id, label: name, credit, asWorld });
+  } catch (e){ hideLoader(); say(`Could not load the sample model: ${e.message}`); }
+}
+for (const [id, name] of SAMPLE_MODELS){
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.id = id; b.className = 'model'; b.title = `${name} (3D model)`; b.setAttribute('aria-label', `${name}, 3D model`);
+  b.innerHTML = `<img src="samples/thumbs/${id}.jpg" alt="">`;
+  b.addEventListener('click', () => showSampleModel(id));
+  $('gallery').append(b);
+}
 $('pick').addEventListener('change', () => { for (const b of $('gallery').children) b.setAttribute('aria-pressed', false); });
-say('Loading sample…');
-showSample(new URLSearchParams(location.search).get('photo'));
+const startParams = new URLSearchParams(location.search);
+if (SAMPLE_MODELS.some(m => m[0] === startParams.get('model'))){
+  showSampleModel(startParams.get('model'));   // a model needs no depth model: skip the photo pipeline entirely
+} else {
+  say('Loading sample…');
+  showSample(startParams.get('photo'));
+}
 // from the landing page's "Use your own photo": browsers won't open a file picker unprompted, so point at it
 if (location.hash === '#own'){
   $('pick').parentElement.classList.add('nudge');

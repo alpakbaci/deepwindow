@@ -96,7 +96,8 @@ h2 em{font-style:italic;font-weight:500;color:var(--jade)}
 .facts li{display:flex;gap:12px;align-items:baseline;border-bottom:1px solid rgba(143,220,184,.2);padding-bottom:12px}
 .facts li::before{content:"✓";font-weight:600;color:var(--jade)}
 
-.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(10px,1.4vw,18px)}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:clamp(10px,1.4vw,18px)}
+.card .tag{position:absolute;z-index:1;top:12px;left:12px;font:500 11px var(--mono);color:#0b1f17;background:var(--jade);border-radius:999px;padding:3px 9px}
 .card{position:relative;display:block;aspect-ratio:4/5;border-radius:14px;overflow:hidden;text-decoration:none;background:#16151a}
 .card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
 .card::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75),rgba(0,0,0,0) 45%);transition:opacity .3s}
@@ -182,7 +183,7 @@ footer{border-top:1px solid var(--edge);padding:28px var(--gutter) 40px;font-siz
   </div>
 
   <section id="samples" class="wrap" aria-labelledby="samples-title">
-    <p class="kicker">Samples</p>
+    <p class="kicker">Samples · photos and .glb 3D models</p>
     <h2 id="samples-title">Pick a scene and <em>look inside.</em></h2>
     <div class="cards">
       <a class="card" href="app.html?photo=corridor"><img src="samples/cards/corridor.jpg" alt="" loading="lazy"><span>Vaulted corridor</span></a>
@@ -190,13 +191,14 @@ footer{border-top:1px solid var(--edge);padding:28px var(--gutter) 40px;font-siz
       <a class="card" href="app.html?photo=library"><img src="samples/cards/library.jpg" alt="" loading="lazy"><span>Library</span></a>
       <a class="card" href="app.html?photo=alley"><img src="samples/cards/alley.jpg" alt="" loading="lazy"><span>Brick alley</span></a>
       <a class="card" href="app.html?photo=railway"><img src="samples/cards/railway.jpg" alt="" loading="lazy"><span>Railway</span></a>
+      <a class="card" href="app.html?model=littlest-tokyo"><b class="tag">.glb · 3D model</b><img src="samples/cards/littlest-tokyo.jpg" alt="" loading="lazy"><span>Littlest Tokyo</span></a>
     </div>
     <div class="callout">
       <div>
         <p class="kicker">Also works with 3D models</p>
-        <p>Drop a <b>.glb</b> file into the app. Small objects float just behind the glass; rooms and landscapes open at life size and you can walk through them with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.</p>
+        <p>Deep Window opens <b>.glb</b> files too, like the Littlest Tokyo sample above. Drop your own into the app: small objects float just behind the glass; rooms and landscapes open at life size and you can walk through them with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. Up to 100 MB.</p>
       </div>
-      <a class="btn ghost" href="app.html#own">Open a model →</a>
+      <a class="btn ghost" href="app.html#own">Open your own .glb →</a>
     </div>
     <p class="tips"><b>For the strongest effect:</b> go full screen, turn on the camera, close one eye and slowly slide your head sideways. Photos with clear depth work best: corridors, streets, a room seen through a doorway. Chrome or Edge recommended; the depth model downloads once on first use.</p>
   </section>
@@ -204,7 +206,7 @@ footer{border-top:1px solid var(--edge);padding:28px var(--gutter) 40px;font-siz
 
 <footer>
   <span>Deep Window · open-source experiment</span>
-  <span>Sample photos CC0 via <a href="samples/CREDITS.md">Wikimedia Commons</a> · Three.js, Transformers.js, MediaPipe</span>
+  <span>Sample photos CC0 via <a href="samples/CREDITS.md">Wikimedia Commons</a> · Littlest Tokyo by Glen Fox (CC BY) · Three.js, Transformers.js, MediaPipe</span>
 </footer>
 
 <script>
