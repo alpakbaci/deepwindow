@@ -6,7 +6,7 @@
 |---|---|---|---|
 | `models/littlest-tokyo.glb` | Glen Fox | Creative Commons Attribution | [Littlest Tokyo on ArtStation](https://artstation.com/artwork/1AGwX), redistributed as in the [three.js examples](https://threejs.org/examples/#webgl_animation_keyframes) |
 
-The model file is used unchanged (Draco compressed, as shipped with three.js r170). `cards/littlest-tokyo.jpg` and `thumbs/littlest-tokyo.jpg` are renders of it made in Deep Window.
+The Littlest Tokyo file is used unchanged (Draco compressed, as shipped with three.js r170). Its card and thumbnail images are renders made in Deep Window.
 
 ## Photos
 

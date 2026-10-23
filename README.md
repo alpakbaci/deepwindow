@@ -4,7 +4,7 @@
 
 <!-- Demo GIF goes here: ![Deep Window demo](media/demo.gif) -->
 
-**[Try it live →](https://YOUR-USERNAME.github.io/deep-window/)** <!-- replace after enabling GitHub Pages -->
+**[Try it live →](https://alpakbaci.github.io/deepwindow/)**
 
 - **Your own photos.** Not a prepared 3D scene: any picture you load becomes a window, in a few seconds. Got a 3D model instead? Drop a `.glb` and walk through it.
 - **Private by design.** Everything runs in your browser. Your photo and camera feed never leave your computer. No server, no sign-up, no build step.
@@ -22,10 +22,16 @@ Without a webcam, you can look around with your mouse.
 
 Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either. To see it right away, open the **Littlest Tokyo** sample (an animated diorama by Glen Fox, CC BY) from the gallery, or go straight to `app.html?model=littlest-tokyo`.
 
-Size is used to guess what a model is, assuming it is in metres. If a model opens the wrong way (a tiny diorama exported in centimetres can look like a giant city), switch between **Object** and **Walk-through** in the panel.
+There are three ways to show a model, switchable in the panel:
+
+- **Object:** fits inside the window, its front at the glass, slowly turning.
+- **Diorama:** the model's front face fills the screen edge to edge, so the walls of a box-shaped scene (an isometric room, a garden niche) line up with the edges of your screen, as if the box were really behind the glass. Refitted when you go full screen.
+- **Walk-through:** life size, explored with the keyboard.
+
+The app picks Object or Walk-through from the model's size, assuming it is in metres. If a model opens the wrong way (a tiny diorama exported in centimetres can look like a giant city), just switch.
 
 - **Objects** (anything under about 4 m across) are scaled to sit just behind the glass. Drag to turn them, or let them spin.
-- **Rooms and landscapes** (bigger than that) open at **life size**: one metre in the model is one metre behind your screen. Walk through them with the keyboard:
+- **Rooms and landscapes** (bigger than that) open at **life size**: one metre in the model is one metre behind your screen. Walk through them with the keyboard (this works in every view):
 
 | Key | Action |
 |---|---|
@@ -42,8 +48,8 @@ Draco, meshopt and KTX2 compressed files are supported, and embedded animations 
 Any static file server works. The page must be served over `http://localhost` or HTTPS for the camera to work, so opening the file directly (`file://`) won't do.
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/deep-window.git
-cd deep-window
+git clone https://github.com/alpakbaci/deepwindow.git
+cd deepwindow
 python3 -m http.server 8000
 ```
 

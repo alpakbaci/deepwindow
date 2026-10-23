@@ -113,9 +113,10 @@ label.sl output{font:12px var(--mono);color:var(--ink)}
   </div>
   <label class="sl" id="depthRow">Depth
     <input data-p="far" type="range" min="0.6" max="4" step="0.05"></label>
-  <div class="seg two" id="viewAs" role="radiogroup" aria-label="Show the model as" hidden>
-    <button type="button" role="radio" data-world="0">Object</button>
-    <button type="button" role="radio" data-world="1">Walk-through</button>
+  <div class="seg" id="viewAs" role="radiogroup" aria-label="Show the model as" hidden>
+    <button type="button" role="radio" data-kind="object" title="Fits inside the window and slowly turns">Object</button>
+    <button type="button" role="radio" data-kind="diorama" title="Fills the screen edge to edge, like a box behind the glass">Diorama</button>
+    <button type="button" role="radio" data-kind="world" title="Life size: walk through it with the keyboard">Walk-through</button>
   </div>
   <p class="keys" id="navHelp" hidden><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Q</kbd><kbd>E</kbd> down / up · <kbd>Shift</kbd> faster · drag to turn · <kbd>R</kbd> reset</p>
   <label class="sl" id="screenRow" hidden>Screen size (inches) <output></output>
@@ -693,7 +694,8 @@ function setMode(m){
   scene.environment = photo ? null : envMap;
   // the photo shader writes the photo's own sRGB values; PBR models need proper output conversion
   renderer.outputColorSpace = photo ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
-  renderer.toneMapping = photo ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  // Khronos PBR Neutral keeps base colours true (ACES washes out flat, saturated colours)
+  renderer.toneMapping = photo ? THREE.NoToneMapping : THREE.NeutralToneMapping;
   $('depthRow').hidden = !photo; $('navHelp').hidden = $('viewAs').hidden = photo;
   if (photo){
     disposeModel();
@@ -730,7 +732,7 @@ async function getGLTFLoader(){
   return gltfLoader;
 }
 
-// opts.asWorld: force object (false) or walk-through (true) instead of guessing from the size;
+// opts.kind: 'object' | 'diorama' | 'world' placement instead of guessing from the size;
 // opts.label / opts.credit: shown in the status line (sample models need their attribution there)
 let modelInfo = null;   // { root, box, size, c, label } of the loaded model, so placement can be switched
 async function loadModel(file, opts = {}){
@@ -752,19 +754,29 @@ async function loadModel(file, opts = {}){
     if (gltf.animations.length){ mixer = new THREE.AnimationMixer(root); for (const a of gltf.animations) mixer.clipAction(a).play(); }
     for (const b of $('gallery').children) b.setAttribute('aria-pressed', b.dataset.id === opts.id);
     // a model is normally in metres: room-sized or bigger is a place to walk through. Files in other
-    // units fool this guess, which is what the Object / Walk-through switch is for.
-    placeModel(opts.asWorld ?? Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4);
+    // units fool this guess, which is what the Object / Diorama / Walk-through switch is for.
+    placeModel(opts.kind ?? (Math.max(modelInfo.size.x, modelInfo.size.y, modelInfo.size.z) > 4 ? 'world' : 'object'));
   } catch (e){
     console.error(e);
     say(`Could not open this model: ${e.message}. Use a single .glb file (a .gltf with separate files will not load).`);
   } finally { busy = false; hideLoader(); openQueued(); }
 }
 
-function placeModel(asWorld){
+// kind: 'object'  — fits inside the window, front at the glass, slowly turning
+//       'diorama' — the model's front face fills the screen edge to edge, so a box-shaped scene's
+//                   walls line up with the screen's edges, like a real box behind the glass
+//       'world'   — life size, walk through it
+let placement = 'object';
+const PLACEMENT_TEXT = {
+  object: ['3D object', 'Drag to turn the object, or move with W A S D. Press R to reset.'],
+  diorama: ['diorama behind the glass', 'The model fills the window like a box behind the glass. Move your head, or use W A S D. Press R to reset.'],
+  world: ['life size, walk through it', 'You are inside the model at life size. Walk with W A S D, turn with ← → or by dragging.'],
+};
+function placeModel(kind){
   if (!modelInfo) return;
   const { root, box, sides, size, c } = modelInfo;
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
-  isWorld = asWorld;
+  placement = kind; isWorld = kind === 'world';
   // seen from inside, one-sided walls exported with outward normals would vanish: draw both sides
   for (const [m, side] of sides){ m.side = isWorld ? THREE.DoubleSide : side; m.needsUpdate = true; }
   if (isWorld){
@@ -775,20 +787,25 @@ function placeModel(asWorld){
     nav.home.set(c.x, Math.min(box.min.y + 1.6, c.y), box.max.z - Math.min(0.5, size.z * 0.1)).multiplyScalar(nav.unit);
     spin = false;
   } else {
-    const k = 0.75 / maxDim;   // fill most of the window without touching the frame
+    // object: fit most of the window without touching the frame; diorama: cover the whole screen
+    // (width = screen aspect, height = 1) with a hair of overscan so no gap shows at the edges
+    const k = kind === 'diorama'
+      ? Math.max((innerWidth / innerHeight) / (size.x || 1), 1 / (size.y || 1)) * 1.02
+      : 0.75 / maxDim;
     root.scale.setScalar(k); root.position.copy(c).multiplyScalar(-k);
     nav.unit = 1;
-    nav.home.set(0, 0, size.z * k / 2);   // its front just touches the glass
-    spin = true;
+    nav.home.set(0, 0, size.z * k / 2);   // its front at the glass
+    spin = kind === 'object';
   }
   resetNav();
-  for (const b of $('viewAs').children) b.setAttribute('aria-checked', (b.dataset.world === '1') === isWorld);
-  say(`${modelInfo.label} · ${isWorld ? 'life size, walk through it' : '3D object'}${modelInfo.credit ? ' · ' + modelInfo.credit : ''}`);
-  $('hint').textContent = isWorld
-    ? 'You are inside the model at life size. Walk with W A S D, turn with ← → or by dragging.'
-    : 'Drag to turn the object, or move with W A S D. Press R to reset.';
+  for (const b of $('viewAs').children) b.setAttribute('aria-checked', b.dataset.kind === kind);
+  const [what, hint] = PLACEMENT_TEXT[kind];
+  say(`${modelInfo.label} · ${what}${modelInfo.credit ? ' · ' + modelInfo.credit : ''}`);
+  $('hint').textContent = hint;
 }
-for (const b of $('viewAs').children) b.addEventListener('click', () => placeModel(b.dataset.world === '1'));
+for (const b of $('viewAs').children) b.addEventListener('click', () => placeModel(b.dataset.kind));
+// the diorama is fitted to the screen's shape: refit when that changes (full screen, resizing)
+addEventListener('resize', () => { if (mode === 'model' && placement === 'diorama') placeModel('diorama'); });
 
 function resetNav(){ nav.pos.copy(nav.home); nav.yaw = 0; if (model) model.rotation.y = 0; }
 const keys = new Set();
@@ -887,17 +904,17 @@ for (const [id, name] of SAMPLES){
   b.addEventListener('click', () => showSample(id));
   $('gallery').append(b);
 }
-// sample 3D models: [id, name, credit, walk-through?]; see samples/CREDITS.md
+// sample 3D models: [id, name, credit, placement]; see samples/CREDITS.md
 const SAMPLE_MODELS = [
-  ['littlest-tokyo', 'Littlest Tokyo', 'model by Glen Fox, CC BY', false],
+  ['littlest-tokyo', 'Littlest Tokyo', 'model by Glen Fox, CC BY', 'object'],
 ];
 async function showSampleModel(id){
-  const [, name, credit, asWorld] = SAMPLE_MODELS.find(m => m[0] === id);
+  const [, name, credit, kind] = SAMPLE_MODELS.find(m => m[0] === id);
   showLoader('Downloading 3D model…', null, name);
   try{
     const blob = await (await fetch(`samples/models/${id}.glb`)).blob();
     while (busy) await new Promise(r => setTimeout(r, 100));   // a photo still estimating depth
-    await loadModel(new File([blob], `${id}.glb`), { id, label: name, credit, asWorld });
+    await loadModel(new File([blob], `${id}.glb`), { id, label: name, credit, kind });
   } catch (e){ hideLoader(); say(`Could not load the sample model: ${e.message}`); }
 }
 for (const [id, name] of SAMPLE_MODELS){
