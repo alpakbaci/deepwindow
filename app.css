@@ -1,0 +1,73 @@
+/* Layout: full-bleed WebGL window, a slim control rail floating bottom-left, status top-left. */
+:root{
+  --bg:#0e0f12;
+  --ink:#ece7df;
+  --dim:#9a958d;
+  --panel:rgba(18,19,23,.78);
+  --edge:rgba(236,231,223,.14);
+  --accent:#7fd1c3;
+  --display:"Fraunces",Georgia,serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);overflow:hidden}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.panel{position:fixed;background:var(--panel);border:1px solid var(--edge);border-radius:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#top{top:16px;left:16px;padding:10px 14px;max-width:min(420px,calc(100vw - 32px))}
+#top h1{font:600 22px/1.1 var(--display);margin:0 0 2px;letter-spacing:.01em}
+#status,#track{font:12px var(--mono);color:var(--dim)}
+#status b,#track b{color:var(--accent);font-weight:400}
+#ctl{left:16px;bottom:16px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(280px,calc(100vw - 32px))}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button,.file{font:500 13px var(--body);color:var(--bg);background:var(--ink);border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--edge)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,.file:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.file input{position:absolute;opacity:0;width:1px;height:1px}
+#ctl{max-height:calc(100vh - 120px);overflow-y:auto}
+.sliders{display:flex;flex-direction:column;gap:8px}
+.sliders summary{font:500 12px var(--body);color:var(--ink);cursor:pointer;margin-bottom:2px}
+.note{font-size:11px;color:var(--dim);margin:0}
+.keys{font-size:12px;color:var(--dim);margin:0;line-height:2}
+kbd{font:11px var(--mono);color:var(--ink);border:1px solid var(--edge);border-bottom-width:2px;border-radius:4px;padding:0 5px;margin-right:2px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--edge);border-radius:8px;padding:2px;gap:2px}
+.seg.two{grid-template-columns:repeat(2,1fr)}
+.seg button{background:transparent;color:var(--dim);padding:6px 0;border-radius:6px}
+.seg button[aria-checked="true"]{background:rgba(236,231,223,.12);color:var(--ink)}
+label.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;color:var(--dim)}
+label.sl input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+label.sl output{font:12px var(--mono);color:var(--ink)}
+/* webcam preview: video and iris marks share one mirrored box so the marks line up with the face */
+#camBox{position:fixed;right:16px;bottom:16px;width:220px;margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--edge);background:#000}
+.cam-mirror{position:relative;transform:scaleX(-1)}
+#cam{display:block;width:100%;opacity:.8}
+#camMarks{position:absolute;inset:0;width:100%;height:100%}
+.badge{position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--ink);background:rgba(0,0,0,.55);padding:3px 8px 3px 7px;border-radius:999px}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+#camMsg{padding:8px 10px;font:500 12px var(--body);background:var(--panel);color:var(--ink);transition:color .2s}
+#camBox.lost #camMsg{color:#f0a99b}
+#hint{font-size:12px;color:var(--dim);margin:0}
+#top h1 a{color:inherit;text-decoration:none}
+.file.nudge{animation:nudge 1.4s ease-in-out 3;box-shadow:0 0 0 2px var(--accent)}
+@keyframes nudge{50%{box-shadow:0 0 0 6px rgba(127,209,195,.25)}}
+.gallery{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.gallery button{position:relative}
+.gallery button.model::after{content:"3D";position:absolute;right:2px;bottom:2px;font:600 8px var(--mono);color:var(--bg);background:var(--accent);border-radius:3px;padding:1px 3px}
+.gallery button{padding:0;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:none;aspect-ratio:4/3;opacity:.7}
+.gallery button:hover,.gallery button[aria-pressed="true"]{opacity:1;border-color:var(--accent)}
+.gallery img{width:100%;height:100%;object-fit:cover;display:block}
+/* loading card: centred over the scene while the depth model downloads / runs.
+   The bar moves with transform only, so it keeps animating even while the main thread is busy. */
+#loader{left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,calc(100vw - 32px));padding:16px 18px;display:flex;flex-direction:column;gap:10px;z-index:10}
+.ld-head{display:flex;justify-content:space-between;font:500 14px var(--body)}
+#ldPct{font:12px var(--mono);color:var(--accent)}
+.ld-bar{height:4px;border-radius:2px;background:var(--edge);overflow:hidden;position:relative}
+.ld-bar i{position:absolute;inset:0;background:var(--accent);transform-origin:left;transform:scaleX(var(--p,0));transition:transform .2s}
+.ld-bar.busy i{transform:translateX(-100%) scaleX(.4);animation:ld 1.1s ease-in-out infinite;transition:none}
+@keyframes ld{to{transform:translateX(250%) scaleX(.4)}}
+.ld-note{font-size:12px;color:var(--dim)}
+#drop{position:fixed;inset:0;display:grid;place-items:center;background:rgba(14,15,18,.7);font:500 20px var(--display);pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
