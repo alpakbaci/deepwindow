@@ -827,7 +827,7 @@ uniforms.uDepth.value = fallbackDepth(128, 85);
 requestAnimationFrame(frameLoop);
 // sample gallery: CC0 photos from Wikimedia Commons, see samples/CREDITS.md
 const SAMPLES = [
-  ['corridor', 'Vaulted corridor'], ['umbrellas', 'Umbrella alley'], ['library', 'Library'],
+  ['corridor', 'Vaulted corridor'], ['library', 'Library'],
   ['alley', 'Brick alley'], ['railway', 'Railway'],
 ];
 function showSample(id){
@@ -847,6 +847,7 @@ for (const [id, name] of SAMPLES){
 // where the source picture was taken from, so starting near it frames the scene the way it was made.
 const SAMPLE_MODELS = [
   { id: 'littlest-tokyo', name: 'Littlest Tokyo', file: 'littlest-tokyo.glb', credit: 'model by Glen Fox, CC BY', kind: 'object' },
+  { id: 'turk-bakkal', name: 'Türk Bakkalı', file: 'turk-bakkal.glb', credit: 'model by PickleGork, CC BY', kind: 'object' },
 ];
 async function showSampleModel(id){
   const { name, file, credit, kind, home } = SAMPLE_MODELS.find(m => m.id === id);

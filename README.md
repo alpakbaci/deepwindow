@@ -20,7 +20,10 @@ Without a webcam, you can look around with your mouse.
 
 ## 3D models (.glb)
 
-Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either. To see it right away, open the **Littlest Tokyo** sample (an animated diorama by Glen Fox, CC BY) from the gallery, or go straight to `app.html?model=littlest-tokyo`.
+Prefer real 3D? You can also load a **.glb** model: use "Open file" or drop it onto the page. It never leaves your computer either. To see it right away, open one of the two samples from the gallery:
+
+- **Littlest Tokyo**, an animated diorama by [Glen Fox](https://artstation.com/artwork/1AGwX) (CC BY): `app.html?model=littlest-tokyo`
+- **Türk Bakkalı**, an Istanbul corner shop by [PickleGork](https://sketchfab.com/3d-models/turk-bakkal-turkish-grocery-store-diorama-72cc6e44eb7848b68cec4a90d790bec6) (CC BY 4.0): `app.html?model=turk-bakkal`
 
 There are three ways to show a model, switchable in the panel:
 
@@ -99,7 +102,7 @@ index.html, index.css, index.js   landing page
 app.html, app.css, app.js         the app
 favicon.svg, og.jpg               logo and link-preview image
 fonts/                            self-hosted fonts and their licenses (SIL OFL 1.1)
-samples/                          sample photos, the sample 3D model, gallery images, CREDITS.md
+samples/                          sample photos, the sample 3D models, gallery images, CREDITS.md
 ```
 
 ## Built with
@@ -114,7 +117,7 @@ samples/                          sample photos, the sample 3D model, gallery im
 | [Spark](https://github.com/sparkjsdev/spark) 2.3 | MIT |
 | [Fraunces](https://github.com/undercasetype/Fraunces), [IBM Plex Sans and Mono](https://github.com/IBM/plex) (fonts, self-hosted) | SIL OFL 1.1 |
 
-See [What loads from the internet](#what-loads-from-the-internet) for where each library and model comes from. Sample photos are CC0 from Wikimedia Commons; the sample model is Littlest Tokyo by Glen Fox (CC BY). See [samples/CREDITS.md](samples/CREDITS.md).
+See [What loads from the internet](#what-loads-from-the-internet) for where each library and model comes from. Sample photos are CC0 from Wikimedia Commons; the sample models are Littlest Tokyo by Glen Fox (CC BY) and Türk Bakkalı by PickleGork (CC BY 4.0, compressed for the web). See [samples/CREDITS.md](samples/CREDITS.md).
 
 Inspired by Johnny Chung Lee's [Wii Remote head tracking](https://www.youtube.com/watch?v=Jd3-eiid-Uw) (2007) and the World Labs [off-axis projection demo](https://www.worldlabs.ai/labs/showcase/off-axis).
 
