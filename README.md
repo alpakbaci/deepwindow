@@ -4,7 +4,7 @@
 
 <!-- Demo GIF goes here: ![Deep Window demo](media/demo.gif) -->
 
-<!-- Live demo link goes here once GitHub Pages is on: https://alpakbaci.github.io/deepwindow/ -->
+**[Try it live → alpakbaci.github.io/deepwindow](https://alpakbaci.github.io/deepwindow/)** · best on a laptop or desktop with a webcam, in Chrome or Edge
 
 - **Your own photos.** Not a prepared 3D scene: any picture you load becomes a window, in a few seconds. Got a 3D model or a Gaussian splat instead? Drop a `.glb` or `.spz` and walk through it.
 - **Private by design.** Everything runs in your browser. Your photo and camera feed never leave your computer. No server, no sign-up, no build step.
@@ -58,7 +58,7 @@ Gaussian splats are photoreal 3D captures, made by phone scanning apps (Scaniver
 
 ## Run it locally
 
-Any static file server works. The page must be served over `http://localhost` or HTTPS for the camera to work, so opening the file directly (`file://`) won't do.
+No install is needed to use it: just open the [live demo](https://alpakbaci.github.io/deepwindow/). To run your own copy, any static file server works. The page must be served over `http://localhost` or HTTPS for the camera to work, so opening the file directly (`file://`) won't do.
 
 ```bash
 git clone https://github.com/alpakbaci/deepwindow.git
